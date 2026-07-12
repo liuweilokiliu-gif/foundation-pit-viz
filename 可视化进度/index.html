@@ -1,0 +1,3211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>基坑支护工程进度驾驶舱</title>
+<style>
+/* ===== CSS Variables ===== */
+:root {
+  --bg-primary: #0a0e1a;
+  --bg-secondary: #111827;
+  --bg-panel: #1a2235;
+  --bg-card: #1e293b;
+  --border: #2d3a4f;
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #3b82f6;
+  --accent-light: #60a5fa;
+  --status-done: #00c853;
+  --status-doing: #ffab00;
+  --status-pending: #546e7a;
+  --pile-reinforced: #42a5f5;
+  --pile-plain: #bbdefb;
+  --pile-jetgrout: #ce93d8;
+  --pile-micro: #ffcc80;
+  --pile-column: #66bb6a;
+  --beam-crown: #fdd835;
+  --beam-strut: #ef5350;
+  --beam-corner: #ff7043;
+  --slab: #4db6ac;
+}
+
+/* ===== Reset & Base ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Top Header ===== */
+.header {
+  height: 56px;
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-panel));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 20px;
+  flex-shrink: 0;
+}
+.header-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-light);
+  letter-spacing: 2px;
+}
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.header-controls label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.date-input {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.filter-select {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.btn:hover { background: var(--accent-light); }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.btn-outline:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ===== Main Layout ===== */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== Panel Toggle Buttons ===== */
+.panel-toggle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  transition: background 0.2s;
+}
+.panel-toggle:hover { background: var(--accent); color: #fff; }
+.toggle-left {
+  left: 0;
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+.toggle-right {
+  right: 0;
+  border-radius: 6px 0 0 6px;
+  border-right: none;
+}
+
+/* ===== Side Panels ===== */
+.panel {
+  width: 260px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: width 0.3s ease, min-width 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+  contain: layout;
+}
+.panel.collapsed {
+  width: 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+.panel-right {
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+.panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ===== Chart Cards ===== */
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.chart-card-title {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+/* ===== Pie Chart (CSS only) ===== */
+.pie-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pie-visual {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  position: relative;
+}
+.pie-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.pie-center-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--status-done);
+}
+.pie-center-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.legend-label { color: var(--text-secondary); }
+.legend-value { margin-left: auto; color: var(--text-primary); font-weight: 600; }
+
+/* ===== Bar Chart (CSS) ===== */
+.bar-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  width: 70px;
+  flex-shrink: 0;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bar-track {
+  flex: 1;
+  height: 18px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+  min-width: 0;
+}
+.bar-value {
+  font-size: 11px;
+  color: var(--text-primary);
+  width: 36px;
+  text-align: right;
+  font-weight: 600;
+}
+
+/* ===== Daily Bar Chart ===== */
+.daily-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding-top: 8px;
+  overflow: hidden;
+}
+.daily-bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.daily-bar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.4s ease;
+  min-height: 2px;
+  position: relative;
+}
+.daily-bar-plan {
+  background: var(--accent);
+  opacity: 0.5;
+}
+.daily-bar-actual {
+  background: var(--status-done);
+}
+.daily-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.daily-bar-tooltip {
+  display: none;
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--text-primary);
+  background: var(--bg-panel);
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.daily-bar-group:hover .daily-bar-tooltip { display: block; }
+
+/* ===== Center Area ===== */
+.center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+.plan-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  background-color: #0d1520;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.plan-container:active { cursor: grabbing; }
+.plan-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
+.plan-svg text {
+  fill: var(--text-muted);
+  font-size: 10px;
+  user-select: none;
+}
+
+/* ===== Pile Styles ===== */
+.pile-circle {
+  cursor: pointer;
+  transition: opacity 0.2s, filter 0.2s;
+}
+.pile-circle:hover {
+  filter: brightness(1.4);
+  opacity: 0.85;
+}
+.pile-label {
+  font-size: 9px;
+  fill: var(--text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ===== Line Styles ===== */
+.beam-line-bg {
+  stroke: var(--status-pending);
+  opacity: 0.3;
+}
+.beam-line-drawn {
+  stroke-linecap: round;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.beam-line-drawn:hover {
+  filter: brightness(1.3);
+  opacity: 0.85;
+}
+
+/* ===== Polygon Styles ===== */
+.slab-poly-bg {
+  fill: var(--status-pending);
+  opacity: 0.15;
+}
+.slab-poly-drawn {
+  stroke-width: 1.5;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.slab-poly-drawn:hover {
+  filter: brightness(1.3);
+  opacity: 0.85;
+}
+.slab-region-drawn {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.slab-region-drawn:hover {
+  filter: brightness(1.3);
+  opacity: 0.85;
+}
+
+/* ===== Zoom Controls ===== */
+.zoom-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+.zoom-btn {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.zoom-btn:hover { background: var(--bg-panel); }
+
+/* ===== Legend Bar on Plan ===== */
+.plan-legend {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(10,14,26,0.85);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.plan-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.plan-legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.plan-legend-line {
+  width: 20px;
+  height: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ===== Drawing Mode Indicator ===== */
+.mode-indicator {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(10,14,26,0.9);
+  border: 1px solid var(--status-doing);
+  border-radius: 8px;
+  padding: 10px 14px;
+  z-index: 10;
+  font-size: 13px;
+  color: var(--status-doing);
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.mode-indicator.active { display: flex; }
+
+/* ===== Bottom Stats ===== */
+.bottom-stats {
+  height: 80px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.stat-card {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stat-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.stat-info { display: flex; flex-direction: column; }
+.stat-value { font-size: 20px; font-weight: 700; }
+.stat-label { font-size: 11px; color: var(--text-muted); }
+
+/* ===== Status Popup ===== */
+.status-popup {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  min-width: 180px;
+}
+.status-popup.active { display: block; }
+.status-popup-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.status-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 13px;
+}
+.status-option:hover { background: rgba(255,255,255,0.05); }
+.status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-option.selected {
+  background: rgba(59,130,246,0.15);
+  border: 1px solid var(--accent);
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ===== Detail Table ===== */
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.detail-table th {
+  background: rgba(59,130,246,0.1);
+  color: var(--accent-light);
+  padding: 8px 6px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.detail-table td {
+  padding: 7px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+}
+.detail-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+.progress-mini {
+  display: inline-block;
+  width: 50px;
+  height: 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.progress-mini-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+
+/* ===== Snapshot badge ===== */
+.snapshot-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(59,130,246,0.1);
+  color: var(--accent-light);
+}
+
+/* ===== Comparison bars ===== */
+.compare-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.compare-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  width: 40px;
+}
+.compare-bars {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.compare-bar {
+  height: 10px;
+  border-radius: 3px;
+  transition: width 0.4s;
+}
+.compare-bar-plan { background: var(--accent); opacity: 0.5; }
+.compare-bar-actual { background: var(--status-done); }
+.compare-val {
+  font-size: 11px;
+  width: 30px;
+  text-align: right;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* ===== Tools Panel ===== */
+.tools-panel {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tool-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tool-btn:hover, .tool-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ===== Plan toolbar ===== */
+.plan-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10,14,26,0.9);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+}
+.plan-tool-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.plan-tool-btn:hover, .plan-tool-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* ===== Tooltip ===== */
+.svg-tooltip {
+  position: absolute;
+  background: rgba(10,14,26,0.92);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  z-index: 50;
+  font-size: 12px;
+  color: var(--text-primary);
+  pointer-events: none;
+  white-space: nowrap;
+  display: none;
+}
+.svg-tooltip.active { display: block; }
+.svg-tooltip .tt-row { display: flex; gap: 8px; margin: 2px 0; }
+.svg-tooltip .tt-label { color: var(--text-muted); }
+.svg-tooltip .tt-val { color: var(--text-primary); font-weight: 600; }
+
+/* ===== Selected highlight ===== */
+.beam-line-drawn.selected, .slab-poly-drawn.selected {
+  filter: drop-shadow(0 0 4px #fff) brightness(1.4) !important;
+  opacity: 1 !important;
+}
+
+/* ===== Popup enhancements ===== */
+.popup-info {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.popup-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 3px 0;
+}
+.popup-info-label { color: var(--text-muted); }
+.popup-info-value { color: var(--text-primary); font-weight: 600; }
+.popup-delete-btn {
+  width: 100%;
+  background: rgba(239,83,80,0.15);
+  border: 1px solid rgba(239,83,80,0.3);
+  color: #ef5350;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-top: 8px;
+  transition: background 0.2s;
+}
+.popup-delete-btn:hover {
+  background: rgba(239,83,80,0.3);
+}
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-title">🏗️ 基坑支护工程进度驾驶舱</div>
+  <div class="header-controls">
+    <label>📅 日期：</label>
+    <input type="date" class="date-input" id="dateInput" value="2026-07-11">
+    <button class="btn btn-outline" onclick="goToday()">今天</button>
+    <span class="snapshot-badge" id="snapshotBadge">📷 已快照</span>
+    <label>🧹 筛选：</label>
+    <select class="filter-select" id="filterSelect" onchange="applyFilter()">
+      <option value="all">全部构件</option>
+      <option value="pile">桩类</option>
+      <option value="beam">梁类</option>
+      <option value="slab">盖板</option>
+    </select>
+    <select class="filter-select" id="statusFilter" onchange="applyFilter()">
+      <option value="all">全部状态</option>
+      <option value="done">已完成</option>
+      <option value="doing">施工中</option>
+      <option value="pending">未施工</option>
+    </select>
+  </div>
+</header>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+
+  <!-- Left Panel -->
+  <aside class="panel" id="leftPanel">
+    <div class="panel-title">📊 进度概览</div>
+
+    <!-- Pie Chart -->
+    <div class="chart-card">
+      <div class="chart-card-title">各工程类型进度占比</div>
+      <div class="pie-container">
+        <div class="pie-visual" id="pieChart">
+          <div class="pie-center">
+            <div class="pie-center-value" id="pieTotalRate">35%</div>
+            <div class="pie-center-label">总完成率</div>
+          </div>
+        </div>
+        <div class="legend" id="pieLegend"></div>
+      </div>
+    </div>
+
+    <!-- Horizontal Bar Chart -->
+    <div class="chart-card">
+      <div class="chart-card-title">各类型完成进度</div>
+      <div class="bar-chart" id="barChart"></div>
+    </div>
+  </aside>
+
+  <!-- Center -->
+  <div class="center">
+    <div class="plan-container" id="planContainer">
+      <svg class="plan-svg" id="planSvg" viewBox="0 0 1400 900" preserveAspectRatio="xMidYMid meet"></svg>
+
+      <!-- Plan Legend -->
+      <div class="plan-legend">
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--pile-reinforced)"></div>
+          <span>荤桩</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--pile-plain)"></div>
+          <span>素桩</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--pile-jetgrout)"></div>
+          <span>旋喷桩</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--pile-micro)"></div>
+          <span>微型桩</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--pile-column)"></div>
+          <span>立柱桩</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-line" style="background:var(--beam-crown)"></div>
+          <span>冠梁</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-line" style="background:var(--beam-strut)"></div>
+          <span>对撑梁</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-line" style="background:var(--beam-corner)"></div>
+          <span>角撑</span>
+        </div>
+        <div class="plan-legend-item">
+          <div class="plan-legend-dot" style="background:var(--slab); border-radius:2px"></div>
+          <span>盖板</span>
+        </div>
+      </div>
+
+      <!-- Editing Toolbar -->
+      <div class="plan-toolbar" id="planToolbar">
+        <button class="plan-tool-btn active" onclick="enterSelectMode()" id="toolSelect">&#x1F5B1; 选择</button>
+        <button class="plan-tool-btn" onclick="enterEditMode('beam')" id="toolEditBeam">&#x270F;&#xFE0F; 标记梁段</button>
+        <button class="plan-tool-btn" onclick="enterEditMode('slab')" id="toolEditSlab">&#x270F;&#xFE0F; 标记板区</button>
+      </div>
+
+      <!-- Edit Mode Indicator -->
+      <div class="mode-indicator" id="modeIndicator">
+        ✏️ <span id="modeText"></span>
+        <button class="btn" style="padding:3px 8px;font-size:11px" onclick="cancelEditing()">完成</button>
+      </div>
+
+      <!-- Zoom Controls -->
+      <div class="zoom-controls">
+        <button class="zoom-btn" onclick="zoomIn()">+</button>
+        <button class="zoom-btn" onclick="zoomOut()">−</button>
+        <button class="zoom-btn" onclick="resetView()">⌂</button>
+      </div>
+
+      <!-- Panel Toggle Buttons -->
+      <button class="panel-toggle toggle-left" id="toggleLeft" onclick="togglePanel('left')" title="收起/展开左面板">❮</button>
+      <button class="panel-toggle toggle-right" id="toggleRight" onclick="togglePanel('right')" title="收起/展开右面板">❯</button>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <aside class="panel panel-right" id="rightPanel">
+    <div class="panel-title">📈 数据统计</div>
+
+    <!-- Daily Bar Chart -->
+    <div class="chart-card">
+      <div class="chart-card-title">近7日完成量（根/米）</div>
+      <div class="daily-bars" id="dailyBars"></div>
+    </div>
+
+    <!-- Weekly Comparison -->
+    <div class="chart-card">
+      <div class="chart-card-title">本周计划 vs 实际</div>
+      <div id="weeklyCompare"></div>
+    </div>
+
+    <!-- Detail Table -->
+    <div class="chart-card">
+      <div class="chart-card-title">工程类型进度详情</div>
+      <table class="detail-table">
+        <thead>
+          <tr>
+            <th>类型</th>
+            <th>总数</th>
+            <th>完成</th>
+            <th>施工中</th>
+            <th>进度</th>
+          </tr>
+        </thead>
+        <tbody id="detailTableBody"></tbody>
+      </table>
+    </div>
+  </aside>
+</div>
+
+<!-- ===== BOTTOM STATS ===== -->
+<div class="bottom-stats" id="bottomStats"></div>
+
+<!-- ===== STATUS POPUP ===== -->
+<div class="status-popup" id="statusPopup">
+  <div class="status-popup-title" id="popupTitle">选择状态</div>
+  <div class="popup-info" id="popupInfo" style="display:none"></div>
+  <div id="popupStatusOptions">
+    <div class="status-option" data-status="done" onclick="setStatus('done')">
+      <div class="status-dot" style="background:var(--status-done)"></div>
+      <span>&#x2705; 已完成</span>
+    </div>
+    <div class="status-option" data-status="doing" onclick="setStatus('doing')">
+      <div class="status-dot" style="background:var(--status-doing)"></div>
+      <span>&#x1F527; 施工中</span>
+    </div>
+    <div class="status-option" data-status="pending" onclick="setStatus('pending')">
+      <div class="status-dot" style="background:var(--status-pending)"></div>
+      <span>&#x23F3; 未施工</span>
+    </div>
+  </div>
+  <button class="popup-delete-btn" id="popupDeleteSegBtn" style="display:none" onclick="deleteSegment()">&#x1F5D1; 删除此段</button>
+</div>
+
+<!-- ===== SVG Tooltip ===== -->
+<div class="svg-tooltip" id="svgTooltip"></div>
+
+<script>
+// ============================================================
+// DATA MODEL
+// ============================================================
+
+// Status colors
+const STATUS_COLORS = {
+  done: '#00c853',
+  doing: '#ffab00',
+  pending: '#546e7a'
+};
+const STATUS_LABELS = { done: '已完成', doing: '施工中', pending: '未施工' };
+
+// Type definitions
+const TYPES = {
+  '咬合桩-荤桩':   { category: 'pile',  unit: '根', color: '#42a5f5', icon: '⭕' },
+  '咬合桩-素桩':   { category: 'pile',  unit: '根', color: '#90caf9', icon: '⭕' },
+  '微型桩':       { category: 'pile',  unit: '根', color: '#ffcc80', icon: '⭕' },
+  '双管旋喷桩':   { category: 'pile',  unit: '根', color: '#ab47bc', icon: '◎' },
+  '立柱桩':       { category: 'pile',  unit: '根', color: '#66bb6a', icon: '⊕' },
+  '冠梁':         { category: 'beam', unit: '米', color: '#fdd835', icon: '━' },
+  '对撑':         { category: 'beam', unit: '米', color: '#ef5350', icon: '═' },
+  '角撑':         { category: 'beam', unit: '米', color: '#ff7043', icon: '╲' },
+  '盖板':         { category: 'slab', unit: 'm²', color: '#4db6ac', icon: '◼' }
+};
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ---- Real data: Piles ----
+const piles = [
+  { id: 'YP001', type: '咬合桩-荤桩', x: 171.8, y: 560.3, r: 6.6, status: 'pending' },
+  { id: 'YP002', type: '咬合桩-荤桩', x: 172.2, y: 580.1, r: 6.6, status: 'pending' },
+  { id: 'YP003', type: '咬合桩-荤桩', x: 470.2, y: 764.6, r: 6.6, status: 'pending' },
+  { id: 'YP004', type: '咬合桩-荤桩', x: 490.0, y: 764.2, r: 6.6, status: 'pending' },
+  { id: 'YP005', type: '咬合桩-荤桩', x: 509.8, y: 763.9, r: 6.6, status: 'pending' },
+  { id: 'YP006', type: '咬合桩-荤桩', x: 529.5, y: 763.6, r: 6.6, status: 'pending' },
+  { id: 'YP007', type: '咬合桩-荤桩', x: 549.3, y: 763.2, r: 6.6, status: 'pending' },
+  { id: 'YP008', type: '咬合桩-荤桩', x: 569.0, y: 762.9, r: 6.6, status: 'pending' },
+  { id: 'YP009', type: '咬合桩-荤桩', x: 588.8, y: 762.5, r: 6.6, status: 'pending' },
+  { id: 'YP010', type: '咬合桩-荤桩', x: 608.5, y: 762.2, r: 6.6, status: 'pending' },
+  { id: 'YP011', type: '咬合桩-荤桩', x: 628.3, y: 761.9, r: 6.6, status: 'pending' },
+  { id: 'YP012', type: '咬合桩-荤桩', x: 648.0, y: 761.5, r: 6.6, status: 'pending' },
+  { id: 'YP013', type: '咬合桩-荤桩', x: 667.8, y: 761.2, r: 6.6, status: 'pending' },
+  { id: 'YP014', type: '咬合桩-荤桩', x: 687.5, y: 760.8, r: 6.6, status: 'pending' },
+  { id: 'YP015', type: '咬合桩-荤桩', x: 707.3, y: 760.5, r: 6.6, status: 'pending' },
+  { id: 'YP016', type: '咬合桩-荤桩', x: 727.1, y: 760.1, r: 6.6, status: 'pending' },
+  { id: 'YP017', type: '咬合桩-荤桩', x: 746.8, y: 759.8, r: 6.6, status: 'pending' },
+  { id: 'YP018', type: '咬合桩-荤桩', x: 766.6, y: 759.5, r: 6.6, status: 'pending' },
+  { id: 'YP019', type: '咬合桩-荤桩', x: 786.3, y: 759.1, r: 6.6, status: 'pending' },
+  { id: 'YP020', type: '咬合桩-荤桩', x: 806.1, y: 758.8, r: 6.6, status: 'pending' },
+  { id: 'YP021', type: '咬合桩-荤桩', x: 825.8, y: 758.4, r: 6.6, status: 'pending' },
+  { id: 'YP022', type: '咬合桩-荤桩', x: 845.6, y: 758.1, r: 6.6, status: 'pending' },
+  { id: 'YP023', type: '咬合桩-荤桩', x: 865.3, y: 757.7, r: 6.6, status: 'pending' },
+  { id: 'YP024', type: '咬合桩-荤桩', x: 885.1, y: 757.4, r: 6.6, status: 'pending' },
+  { id: 'YP025', type: '咬合桩-荤桩', x: 904.8, y: 757.1, r: 6.6, status: 'pending' },
+  { id: 'YP026', type: '咬合桩-荤桩', x: 924.6, y: 756.7, r: 6.6, status: 'pending' },
+  { id: 'YP027', type: '咬合桩-荤桩', x: 944.3, y: 756.4, r: 6.6, status: 'pending' },
+  { id: 'YP028', type: '咬合桩-荤桩', x: 964.1, y: 756.0, r: 6.6, status: 'pending' },
+  { id: 'YP029', type: '咬合桩-荤桩', x: 983.9, y: 755.7, r: 6.6, status: 'pending' },
+  { id: 'YP030', type: '咬合桩-荤桩', x: 1003.6, y: 755.3, r: 6.6, status: 'pending' },
+  { id: 'YP031', type: '咬合桩-荤桩', x: 1023.4, y: 755.0, r: 6.6, status: 'pending' },
+  { id: 'YP032', type: '咬合桩-荤桩', x: 1043.1, y: 754.7, r: 6.6, status: 'pending' },
+  { id: 'YP033', type: '咬合桩-荤桩', x: 1062.9, y: 754.3, r: 6.6, status: 'pending' },
+  { id: 'YP034', type: '咬合桩-荤桩', x: 1082.6, y: 754.0, r: 6.6, status: 'pending' },
+  { id: 'YP035', type: '咬合桩-荤桩', x: 1102.4, y: 753.6, r: 6.6, status: 'pending' },
+  { id: 'YP036', type: '咬合桩-荤桩', x: 1122.1, y: 753.3, r: 6.6, status: 'pending' },
+  { id: 'YP037', type: '咬合桩-荤桩', x: 1141.9, y: 753.0, r: 6.6, status: 'pending' },
+  { id: 'YP038', type: '咬合桩-荤桩', x: 1161.6, y: 752.6, r: 6.6, status: 'pending' },
+  { id: 'YP039', type: '咬合桩-荤桩', x: 1181.4, y: 752.3, r: 6.6, status: 'pending' },
+  { id: 'YP040', type: '咬合桩-荤桩', x: 1201.2, y: 751.9, r: 6.6, status: 'pending' },
+  { id: 'YP041', type: '咬合桩-荤桩', x: 1220.9, y: 751.6, r: 6.6, status: 'pending' },
+  { id: 'YP042', type: '咬合桩-荤桩', x: 1240.7, y: 751.2, r: 6.6, status: 'pending' },
+  { id: 'YP043', type: '咬合桩-荤桩', x: 1260.4, y: 750.9, r: 6.6, status: 'pending' },
+  { id: 'YP044', type: '咬合桩-荤桩', x: 1280.2, y: 750.6, r: 6.6, status: 'pending' },
+  { id: 'YP045', type: '咬合桩-荤桩', x: 1280.8, y: 733.1, r: 6.6, status: 'pending' },
+  { id: 'YP046', type: '咬合桩-荤桩', x: 1281.6, y: 713.3, r: 6.6, status: 'pending' },
+  { id: 'YP047', type: '咬合桩-荤桩', x: 1282.3, y: 693.6, r: 6.6, status: 'pending' },
+  { id: 'YP048', type: '咬合桩-荤桩', x: 1283.0, y: 673.8, r: 6.6, status: 'pending' },
+  { id: 'YP049', type: '咬合桩-荤桩', x: 1283.8, y: 654.1, r: 6.6, status: 'pending' },
+  { id: 'YP050', type: '咬合桩-荤桩', x: 1284.5, y: 634.3, r: 6.6, status: 'pending' },
+  { id: 'YP051', type: '咬合桩-荤桩', x: 1285.3, y: 614.6, r: 6.6, status: 'pending' },
+  { id: 'YP052', type: '咬合桩-荤桩', x: 1286.0, y: 594.9, r: 6.6, status: 'pending' },
+  { id: 'YP053', type: '咬合桩-荤桩', x: 1286.7, y: 575.1, r: 6.6, status: 'pending' },
+  { id: 'YP054', type: '咬合桩-荤桩', x: 1287.5, y: 555.4, r: 6.6, status: 'pending' },
+  { id: 'YP055', type: '咬合桩-荤桩', x: 1288.2, y: 535.6, r: 6.6, status: 'pending' },
+  { id: 'YP056', type: '咬合桩-荤桩', x: 1289.0, y: 515.9, r: 6.6, status: 'pending' },
+  { id: 'YP057', type: '咬合桩-荤桩', x: 1289.7, y: 496.1, r: 6.6, status: 'pending' },
+  { id: 'YP058', type: '咬合桩-荤桩', x: 1290.4, y: 476.4, r: 6.6, status: 'pending' },
+  { id: 'YP059', type: '咬合桩-荤桩', x: 1291.2, y: 456.7, r: 6.6, status: 'pending' },
+  { id: 'YP060', type: '咬合桩-荤桩', x: 1291.9, y: 436.9, r: 6.6, status: 'pending' },
+  { id: 'YP061', type: '咬合桩-荤桩', x: 1292.7, y: 417.2, r: 6.6, status: 'pending' },
+  { id: 'YP062', type: '咬合桩-荤桩', x: 1293.4, y: 397.4, r: 6.6, status: 'pending' },
+  { id: 'YP063', type: '咬合桩-荤桩', x: 1294.1, y: 377.7, r: 6.6, status: 'pending' },
+  { id: 'YP064', type: '咬合桩-荤桩', x: 1294.9, y: 357.9, r: 6.6, status: 'pending' },
+  { id: 'YP065', type: '咬合桩-荤桩', x: 1295.6, y: 338.2, r: 6.6, status: 'pending' },
+  { id: 'YP066', type: '咬合桩-荤桩', x: 1296.4, y: 318.5, r: 6.6, status: 'pending' },
+  { id: 'YP067', type: '咬合桩-荤桩', x: 1297.1, y: 298.7, r: 6.6, status: 'pending' },
+  { id: 'YP068', type: '咬合桩-荤桩', x: 1297.8, y: 279.0, r: 6.6, status: 'pending' },
+  { id: 'YP069', type: '咬合桩-荤桩', x: 1298.6, y: 259.2, r: 6.6, status: 'pending' },
+  { id: 'YP070', type: '咬合桩-荤桩', x: 1299.3, y: 239.5, r: 6.6, status: 'pending' },
+  { id: 'YP071', type: '咬合桩-荤桩', x: 1300.1, y: 219.7, r: 6.6, status: 'pending' },
+  { id: 'YP072', type: '咬合桩-荤桩', x: 1300.8, y: 200.0, r: 6.6, status: 'pending' },
+  { id: 'YP073', type: '咬合桩-荤桩', x: 1287.3, y: 192.7, r: 6.6, status: 'pending' },
+  { id: 'YP074', type: '咬合桩-荤桩', x: 1269.8, y: 192.6, r: 6.6, status: 'pending' },
+  { id: 'YP075', type: '咬合桩-荤桩', x: 1252.2, y: 192.6, r: 6.6, status: 'pending' },
+  { id: 'YP076', type: '咬合桩-荤桩', x: 1234.6, y: 192.5, r: 6.6, status: 'pending' },
+  { id: 'YP077', type: '咬合桩-荤桩', x: 1217.1, y: 192.4, r: 6.6, status: 'pending' },
+  { id: 'YP078', type: '咬合桩-荤桩', x: 1199.5, y: 192.3, r: 6.6, status: 'pending' },
+  { id: 'YP079', type: '咬合桩-荤桩', x: 1181.9, y: 192.3, r: 6.6, status: 'pending' },
+  { id: 'YP080', type: '咬合桩-荤桩', x: 1164.4, y: 192.2, r: 6.6, status: 'pending' },
+  { id: 'YP081', type: '咬合桩-荤桩', x: 1146.8, y: 192.1, r: 6.6, status: 'pending' },
+  { id: 'YP082', type: '咬合桩-荤桩', x: 1129.3, y: 192.1, r: 6.6, status: 'pending' },
+  { id: 'YP083', type: '咬合桩-荤桩', x: 1111.7, y: 192.0, r: 6.6, status: 'pending' },
+  { id: 'YP084', type: '咬合桩-荤桩', x: 1094.1, y: 191.9, r: 6.6, status: 'pending' },
+  { id: 'YP085', type: '咬合桩-荤桩', x: 1076.6, y: 191.9, r: 6.6, status: 'pending' },
+  { id: 'YP086', type: '咬合桩-荤桩', x: 1059.0, y: 191.8, r: 6.6, status: 'pending' },
+  { id: 'YP087', type: '咬合桩-荤桩', x: 1041.4, y: 191.7, r: 6.6, status: 'pending' },
+  { id: 'YP088', type: '咬合桩-荤桩', x: 1023.9, y: 191.7, r: 6.6, status: 'pending' },
+  { id: 'YP089', type: '咬合桩-荤桩', x: 1006.3, y: 191.6, r: 6.6, status: 'pending' },
+  { id: 'YP090', type: '咬合桩-荤桩', x: 988.8, y: 191.5, r: 6.6, status: 'pending' },
+  { id: 'YP091', type: '咬合桩-荤桩', x: 971.2, y: 191.5, r: 6.6, status: 'pending' },
+  { id: 'YP092', type: '咬合桩-荤桩', x: 953.6, y: 191.4, r: 6.6, status: 'pending' },
+  { id: 'YP093', type: '咬合桩-荤桩', x: 936.1, y: 191.3, r: 6.6, status: 'pending' },
+  { id: 'YP094', type: '咬合桩-荤桩', x: 918.5, y: 191.3, r: 6.6, status: 'pending' },
+  { id: 'YP095', type: '咬合桩-荤桩', x: 901.0, y: 191.2, r: 6.6, status: 'pending' },
+  { id: 'YP096', type: '咬合桩-荤桩', x: 883.4, y: 191.1, r: 6.6, status: 'pending' },
+  { id: 'YP097', type: '咬合桩-荤桩', x: 865.8, y: 191.1, r: 6.6, status: 'pending' },
+  { id: 'YP098', type: '咬合桩-荤桩', x: 848.3, y: 191.0, r: 6.6, status: 'pending' },
+  { id: 'YP099', type: '咬合桩-荤桩', x: 830.7, y: 190.9, r: 6.6, status: 'pending' },
+  { id: 'YP100', type: '咬合桩-荤桩', x: 813.1, y: 190.9, r: 6.6, status: 'pending' },
+  { id: 'YP101', type: '咬合桩-荤桩', x: 795.6, y: 190.8, r: 6.6, status: 'pending' },
+  { id: 'YP102', type: '咬合桩-荤桩', x: 778.0, y: 190.7, r: 6.6, status: 'pending' },
+  { id: 'YP103', type: '咬合桩-荤桩', x: 760.5, y: 190.6, r: 6.6, status: 'pending' },
+  { id: 'YP104', type: '咬合桩-荤桩', x: 742.9, y: 190.6, r: 6.6, status: 'pending' },
+  { id: 'YP105', type: '咬合桩-荤桩', x: 725.4, y: 190.8, r: 6.6, status: 'pending' },
+  { id: 'YP106', type: '咬合桩-荤桩', x: 708.3, y: 195.0, r: 6.6, status: 'pending' },
+  { id: 'YP107', type: '咬合桩-荤桩', x: 691.5, y: 200.1, r: 6.6, status: 'pending' },
+  { id: 'YP108', type: '咬合桩-荤桩', x: 675.0, y: 206.1, r: 6.6, status: 'pending' },
+  { id: 'YP109', type: '咬合桩-荤桩', x: 658.9, y: 213.2, r: 6.6, status: 'pending' },
+  { id: 'YP110', type: '咬合桩-荤桩', x: 643.3, y: 221.1, r: 6.6, status: 'pending' },
+  { id: 'YP111', type: '咬合桩-荤桩', x: 628.1, y: 230.0, r: 6.6, status: 'pending' },
+  { id: 'YP112', type: '咬合桩-荤桩', x: 612.1, y: 236.3, r: 6.6, status: 'pending' },
+  { id: 'YP113', type: '咬合桩-荤桩', x: 594.5, y: 236.8, r: 6.6, status: 'pending' },
+  { id: 'YP114', type: '咬合桩-荤桩', x: 577.0, y: 237.3, r: 6.6, status: 'pending' },
+  { id: 'YP115', type: '咬合桩-荤桩', x: 559.4, y: 237.8, r: 6.6, status: 'pending' },
+  { id: 'YP116', type: '咬合桩-荤桩', x: 541.9, y: 238.4, r: 6.6, status: 'pending' },
+  { id: 'YP117', type: '咬合桩-荤桩', x: 524.3, y: 238.9, r: 6.6, status: 'pending' },
+  { id: 'YP118', type: '咬合桩-荤桩', x: 506.8, y: 239.4, r: 6.6, status: 'pending' },
+  { id: 'YP119', type: '咬合桩-荤桩', x: 489.2, y: 239.9, r: 6.6, status: 'pending' },
+  { id: 'YP120', type: '咬合桩-荤桩', x: 471.7, y: 240.4, r: 6.6, status: 'pending' },
+  { id: 'YP121', type: '咬合桩-荤桩', x: 454.1, y: 240.9, r: 6.6, status: 'pending' },
+  { id: 'YP122', type: '咬合桩-荤桩', x: 436.6, y: 241.5, r: 6.6, status: 'pending' },
+  { id: 'YP123', type: '咬合桩-荤桩', x: 419.0, y: 242.0, r: 6.6, status: 'pending' },
+  { id: 'YP124', type: '咬合桩-荤桩', x: 401.4, y: 242.5, r: 6.6, status: 'pending' },
+  { id: 'YP125', type: '咬合桩-荤桩', x: 383.9, y: 243.0, r: 6.6, status: 'pending' },
+  { id: 'YP126', type: '咬合桩-荤桩', x: 366.3, y: 243.5, r: 6.6, status: 'pending' },
+  { id: 'YP127', type: '咬合桩-荤桩', x: 348.8, y: 244.0, r: 6.6, status: 'pending' },
+  { id: 'YP128', type: '咬合桩-荤桩', x: 331.2, y: 244.6, r: 6.6, status: 'pending' },
+  { id: 'YP129', type: '咬合桩-荤桩', x: 313.7, y: 245.1, r: 6.6, status: 'pending' },
+  { id: 'YP130', type: '咬合桩-荤桩', x: 296.1, y: 245.6, r: 6.6, status: 'pending' },
+  { id: 'YP131', type: '咬合桩-荤桩', x: 278.6, y: 246.1, r: 6.6, status: 'pending' },
+  { id: 'YP132', type: '咬合桩-荤桩', x: 261.0, y: 246.6, r: 6.6, status: 'pending' },
+  { id: 'YP133', type: '咬合桩-荤桩', x: 243.5, y: 247.1, r: 6.6, status: 'pending' },
+  { id: 'YP134', type: '咬合桩-荤桩', x: 225.9, y: 247.7, r: 6.6, status: 'pending' },
+  { id: 'YP135', type: '咬合桩-荤桩', x: 208.3, y: 248.2, r: 6.6, status: 'pending' },
+  { id: 'YP136', type: '咬合桩-荤桩', x: 190.8, y: 248.7, r: 6.6, status: 'pending' },
+  { id: 'YP137', type: '咬合桩-荤桩', x: 173.2, y: 249.2, r: 6.6, status: 'pending' },
+  { id: 'YP138', type: '咬合桩-荤桩', x: 166.8, y: 264.0, r: 6.6, status: 'pending' },
+  { id: 'YP139', type: '咬合桩-荤桩', x: 167.1, y: 283.8, r: 6.6, status: 'pending' },
+  { id: 'YP140', type: '咬合桩-荤桩', x: 167.4, y: 303.5, r: 6.6, status: 'pending' },
+  { id: 'YP141', type: '咬合桩-荤桩', x: 167.8, y: 323.3, r: 6.6, status: 'pending' },
+  { id: 'YP142', type: '咬合桩-荤桩', x: 168.1, y: 343.0, r: 6.6, status: 'pending' },
+  { id: 'YP143', type: '咬合桩-荤桩', x: 168.4, y: 362.8, r: 6.6, status: 'pending' },
+  { id: 'YP144', type: '咬合桩-荤桩', x: 168.8, y: 382.5, r: 6.6, status: 'pending' },
+  { id: 'YP145', type: '咬合桩-荤桩', x: 169.1, y: 402.3, r: 6.6, status: 'pending' },
+  { id: 'YP146', type: '咬合桩-荤桩', x: 169.5, y: 422.1, r: 6.6, status: 'pending' },
+  { id: 'YP147', type: '咬合桩-荤桩', x: 169.8, y: 441.8, r: 6.6, status: 'pending' },
+  { id: 'YP148', type: '咬合桩-荤桩', x: 170.1, y: 461.6, r: 6.6, status: 'pending' },
+  { id: 'YP149', type: '咬合桩-荤桩', x: 170.5, y: 481.3, r: 6.6, status: 'pending' },
+  { id: 'YP150', type: '咬合桩-荤桩', x: 170.8, y: 501.1, r: 6.6, status: 'pending' },
+  { id: 'YP151', type: '咬合桩-荤桩', x: 171.1, y: 520.8, r: 6.6, status: 'pending' },
+  { id: 'YP152', type: '咬合桩-荤桩', x: 171.5, y: 540.6, r: 6.6, status: 'pending' },
+  { id: 'WX001', type: '微型桩', x: 167.4, y: 589.4, r: 4.0, status: 'pending' },
+  { id: 'WX002', type: '微型桩', x: 167.5, y: 596.0, r: 4.0, status: 'pending' },
+  { id: 'WX003', type: '微型桩', x: 167.6, y: 602.6, r: 4.0, status: 'pending' },
+  { id: 'WX004', type: '微型桩', x: 167.7, y: 609.2, r: 4.0, status: 'pending' },
+  { id: 'WX005', type: '微型桩', x: 167.8, y: 615.7, r: 4.0, status: 'pending' },
+  { id: 'WX006', type: '微型桩', x: 167.9, y: 622.3, r: 4.0, status: 'pending' },
+  { id: 'WX007', type: '微型桩', x: 168.0, y: 628.9, r: 4.0, status: 'pending' },
+  { id: 'WX008', type: '微型桩', x: 168.2, y: 635.5, r: 4.0, status: 'pending' },
+  { id: 'WX009', type: '微型桩', x: 168.3, y: 642.1, r: 4.0, status: 'pending' },
+  { id: 'WX010', type: '微型桩', x: 168.4, y: 648.7, r: 4.0, status: 'pending' },
+  { id: 'WX011', type: '微型桩', x: 168.5, y: 655.3, r: 4.0, status: 'pending' },
+  { id: 'WX012', type: '微型桩', x: 168.6, y: 661.8, r: 4.0, status: 'pending' },
+  { id: 'WX013', type: '微型桩', x: 168.7, y: 668.4, r: 4.0, status: 'pending' },
+  { id: 'WX014', type: '微型桩', x: 168.8, y: 675.0, r: 4.0, status: 'pending' },
+  { id: 'WX015', type: '微型桩', x: 168.9, y: 681.6, r: 4.0, status: 'pending' },
+  { id: 'WX016', type: '微型桩', x: 169.1, y: 688.2, r: 4.0, status: 'pending' },
+  { id: 'WX017', type: '微型桩', x: 169.2, y: 694.8, r: 4.0, status: 'pending' },
+  { id: 'WX018', type: '微型桩', x: 169.3, y: 701.4, r: 4.0, status: 'pending' },
+  { id: 'WX019', type: '微型桩', x: 169.4, y: 707.9, r: 4.0, status: 'pending' },
+  { id: 'WX020', type: '微型桩', x: 169.5, y: 714.5, r: 4.0, status: 'pending' },
+  { id: 'WX021', type: '微型桩', x: 169.6, y: 721.1, r: 4.0, status: 'pending' },
+  { id: 'WX022', type: '微型桩', x: 169.7, y: 727.7, r: 4.0, status: 'pending' },
+  { id: 'WX023', type: '微型桩', x: 169.8, y: 734.3, r: 4.0, status: 'pending' },
+  { id: 'WX024', type: '微型桩', x: 170.0, y: 740.9, r: 4.0, status: 'pending' },
+  { id: 'WX025', type: '微型桩', x: 170.1, y: 747.4, r: 4.0, status: 'pending' },
+  { id: 'WX026', type: '微型桩', x: 170.2, y: 754.0, r: 4.0, status: 'pending' },
+  { id: 'WX027', type: '微型桩', x: 170.3, y: 760.6, r: 4.0, status: 'pending' },
+  { id: 'WX028', type: '微型桩', x: 172.6, y: 764.4, r: 4.0, status: 'pending' },
+  { id: 'WX029', type: '微型桩', x: 179.2, y: 764.3, r: 4.0, status: 'pending' },
+  { id: 'WX030', type: '微型桩', x: 185.8, y: 764.1, r: 4.0, status: 'pending' },
+  { id: 'WX031', type: '微型桩', x: 192.4, y: 764.0, r: 4.0, status: 'pending' },
+  { id: 'WX032', type: '微型桩', x: 199.0, y: 763.9, r: 4.0, status: 'pending' },
+  { id: 'WX033', type: '微型桩', x: 205.6, y: 763.8, r: 4.0, status: 'pending' },
+  { id: 'WX034', type: '微型桩', x: 212.1, y: 763.7, r: 4.0, status: 'pending' },
+  { id: 'WX035', type: '微型桩', x: 218.7, y: 763.6, r: 4.0, status: 'pending' },
+  { id: 'WX036', type: '微型桩', x: 225.3, y: 763.5, r: 4.0, status: 'pending' },
+  { id: 'WX037', type: '微型桩', x: 231.9, y: 763.3, r: 4.0, status: 'pending' },
+  { id: 'WX038', type: '微型桩', x: 238.5, y: 763.2, r: 4.0, status: 'pending' },
+  { id: 'WX039', type: '微型桩', x: 245.1, y: 763.1, r: 4.0, status: 'pending' },
+  { id: 'WX040', type: '微型桩', x: 251.7, y: 763.0, r: 4.0, status: 'pending' },
+  { id: 'WX041', type: '微型桩', x: 258.2, y: 762.9, r: 4.0, status: 'pending' },
+  { id: 'WX042', type: '微型桩', x: 264.8, y: 762.8, r: 4.0, status: 'pending' },
+  { id: 'WX043', type: '微型桩', x: 271.4, y: 762.7, r: 4.0, status: 'pending' },
+  { id: 'WX044', type: '微型桩', x: 278.0, y: 762.5, r: 4.0, status: 'pending' },
+  { id: 'WX045', type: '微型桩', x: 284.6, y: 762.4, r: 4.0, status: 'pending' },
+  { id: 'WX046', type: '微型桩', x: 291.2, y: 762.3, r: 4.0, status: 'pending' },
+  { id: 'WX047', type: '微型桩', x: 297.7, y: 762.2, r: 4.0, status: 'pending' },
+  { id: 'WX048', type: '微型桩', x: 304.3, y: 762.1, r: 4.0, status: 'pending' },
+  { id: 'WX049', type: '微型桩', x: 310.9, y: 762.0, r: 4.0, status: 'pending' },
+  { id: 'WX050', type: '微型桩', x: 317.5, y: 761.9, r: 4.0, status: 'pending' },
+  { id: 'WX051', type: '微型桩', x: 324.1, y: 761.7, r: 4.0, status: 'pending' },
+  { id: 'WX052', type: '微型桩', x: 330.7, y: 761.6, r: 4.0, status: 'pending' },
+  { id: 'WX053', type: '微型桩', x: 337.3, y: 761.5, r: 4.0, status: 'pending' },
+  { id: 'WX054', type: '微型桩', x: 343.8, y: 761.4, r: 4.0, status: 'pending' },
+  { id: 'WX055', type: '微型桩', x: 350.4, y: 761.3, r: 4.0, status: 'pending' },
+  { id: 'WX056', type: '微型桩', x: 357.0, y: 761.2, r: 4.0, status: 'pending' },
+  { id: 'WX057', type: '微型桩', x: 363.6, y: 761.1, r: 4.0, status: 'pending' },
+  { id: 'WX058', type: '微型桩', x: 370.2, y: 760.9, r: 4.0, status: 'pending' },
+  { id: 'WX059', type: '微型桩', x: 376.8, y: 760.8, r: 4.0, status: 'pending' },
+  { id: 'WX060', type: '微型桩', x: 383.3, y: 760.7, r: 4.0, status: 'pending' },
+  { id: 'WX061', type: '微型桩', x: 389.9, y: 760.6, r: 4.0, status: 'pending' },
+  { id: 'WX062', type: '微型桩', x: 396.5, y: 760.5, r: 4.0, status: 'pending' },
+  { id: 'WX063', type: '微型桩', x: 403.1, y: 760.4, r: 4.0, status: 'pending' },
+  { id: 'WX064', type: '微型桩', x: 409.7, y: 760.3, r: 4.0, status: 'pending' },
+  { id: 'WX065', type: '微型桩', x: 416.3, y: 760.1, r: 4.0, status: 'pending' },
+  { id: 'WX066', type: '微型桩', x: 422.9, y: 760.0, r: 4.0, status: 'pending' },
+  { id: 'WX067', type: '微型桩', x: 429.4, y: 759.9, r: 4.0, status: 'pending' },
+  { id: 'WX068', type: '微型桩', x: 436.0, y: 759.8, r: 4.0, status: 'pending' },
+  { id: 'WX069', type: '微型桩', x: 442.6, y: 759.7, r: 4.0, status: 'pending' },
+  { id: 'WX070', type: '微型桩', x: 449.2, y: 759.6, r: 4.0, status: 'pending' },
+  { id: 'WX071', type: '微型桩', x: 455.8, y: 759.5, r: 4.0, status: 'pending' },
+  { id: 'WX072', type: '微型桩', x: 462.4, y: 759.3, r: 4.0, status: 'pending' },
+  { id: 'ZS001', type: '双管旋喷桩', x: 172.0, y: 570.2, r: 4.0, status: 'pending' },
+  { id: 'ZS002', type: '咬合桩-素桩', x: 480.1, y: 764.4, r: 5.5, status: 'pending' },
+  { id: 'ZS003', type: '咬合桩-素桩', x: 499.9, y: 764.1, r: 5.5, status: 'pending' },
+  { id: 'ZS004', type: '咬合桩-素桩', x: 519.6, y: 763.7, r: 5.5, status: 'pending' },
+  { id: 'ZS005', type: '咬合桩-素桩', x: 539.4, y: 763.4, r: 5.5, status: 'pending' },
+  { id: 'ZS006', type: '咬合桩-素桩', x: 559.1, y: 763.0, r: 5.5, status: 'pending' },
+  { id: 'ZS007', type: '咬合桩-素桩', x: 578.9, y: 762.7, r: 5.5, status: 'pending' },
+  { id: 'ZS008', type: '咬合桩-素桩', x: 598.6, y: 762.4, r: 5.5, status: 'pending' },
+  { id: 'ZS009', type: '咬合桩-素桩', x: 618.4, y: 762.0, r: 5.5, status: 'pending' },
+  { id: 'ZS010', type: '咬合桩-素桩', x: 638.2, y: 761.7, r: 5.5, status: 'pending' },
+  { id: 'ZS011', type: '咬合桩-素桩', x: 657.9, y: 761.3, r: 5.5, status: 'pending' },
+  { id: 'ZS012', type: '咬合桩-素桩', x: 677.7, y: 761.0, r: 5.5, status: 'pending' },
+  { id: 'ZS013', type: '咬合桩-素桩', x: 697.4, y: 760.7, r: 5.5, status: 'pending' },
+  { id: 'ZS014', type: '咬合桩-素桩', x: 717.2, y: 760.3, r: 5.5, status: 'pending' },
+  { id: 'ZS015', type: '咬合桩-素桩', x: 736.9, y: 760.0, r: 5.5, status: 'pending' },
+  { id: 'ZS016', type: '咬合桩-素桩', x: 756.7, y: 759.6, r: 5.5, status: 'pending' },
+  { id: 'ZS017', type: '咬合桩-素桩', x: 776.4, y: 759.3, r: 5.5, status: 'pending' },
+  { id: 'ZS018', type: '咬合桩-素桩', x: 796.2, y: 758.9, r: 5.5, status: 'pending' },
+  { id: 'ZS019', type: '咬合桩-素桩', x: 815.9, y: 758.6, r: 5.5, status: 'pending' },
+  { id: 'ZS020', type: '咬合桩-素桩', x: 835.7, y: 758.3, r: 5.5, status: 'pending' },
+  { id: 'ZS021', type: '咬合桩-素桩', x: 855.5, y: 757.9, r: 5.5, status: 'pending' },
+  { id: 'ZS022', type: '咬合桩-素桩', x: 875.2, y: 757.6, r: 5.5, status: 'pending' },
+  { id: 'ZS023', type: '咬合桩-素桩', x: 895.0, y: 757.2, r: 5.5, status: 'pending' },
+  { id: 'ZS024', type: '咬合桩-素桩', x: 914.7, y: 756.9, r: 5.5, status: 'pending' },
+  { id: 'ZS025', type: '咬合桩-素桩', x: 934.5, y: 756.5, r: 5.5, status: 'pending' },
+  { id: 'ZS026', type: '咬合桩-素桩', x: 954.2, y: 756.2, r: 5.5, status: 'pending' },
+  { id: 'ZS027', type: '咬合桩-素桩', x: 974.0, y: 755.9, r: 5.5, status: 'pending' },
+  { id: 'ZS028', type: '咬合桩-素桩', x: 993.7, y: 755.5, r: 5.5, status: 'pending' },
+  { id: 'ZS029', type: '咬合桩-素桩', x: 1013.5, y: 755.2, r: 5.5, status: 'pending' },
+  { id: 'ZS030', type: '咬合桩-素桩', x: 1033.2, y: 754.8, r: 5.5, status: 'pending' },
+  { id: 'ZS031', type: '咬合桩-素桩', x: 1053.0, y: 754.5, r: 5.5, status: 'pending' },
+  { id: 'ZS032', type: '咬合桩-素桩', x: 1072.8, y: 754.2, r: 5.5, status: 'pending' },
+  { id: 'ZS033', type: '咬合桩-素桩', x: 1092.5, y: 753.8, r: 5.5, status: 'pending' },
+  { id: 'ZS034', type: '咬合桩-素桩', x: 1112.3, y: 753.5, r: 5.5, status: 'pending' },
+  { id: 'ZS035', type: '咬合桩-素桩', x: 1132.0, y: 753.1, r: 5.5, status: 'pending' },
+  { id: 'ZS036', type: '咬合桩-素桩', x: 1151.8, y: 752.8, r: 5.5, status: 'pending' },
+  { id: 'ZS037', type: '咬合桩-素桩', x: 1171.5, y: 752.4, r: 5.5, status: 'pending' },
+  { id: 'ZS038', type: '咬合桩-素桩', x: 1191.3, y: 752.1, r: 5.5, status: 'pending' },
+  { id: 'ZS039', type: '咬合桩-素桩', x: 1211.0, y: 751.8, r: 5.5, status: 'pending' },
+  { id: 'ZS040', type: '咬合桩-素桩', x: 1230.8, y: 751.4, r: 5.5, status: 'pending' },
+  { id: 'ZS041', type: '咬合桩-素桩', x: 1250.5, y: 751.1, r: 5.5, status: 'pending' },
+  { id: 'ZS042', type: '咬合桩-素桩', x: 1270.3, y: 750.7, r: 5.5, status: 'pending' },
+  { id: 'ZS043', type: '双管旋喷桩', x: 1280.5, y: 742.0, r: 4.0, status: 'pending' },
+  { id: 'ZS044', type: '双管旋喷桩', x: 1281.2, y: 723.2, r: 4.0, status: 'pending' },
+  { id: 'ZS045', type: '双管旋喷桩', x: 1281.9, y: 703.5, r: 4.0, status: 'pending' },
+  { id: 'ZS046', type: '双管旋喷桩', x: 1282.7, y: 683.7, r: 4.0, status: 'pending' },
+  { id: 'ZS047', type: '双管旋喷桩', x: 1283.4, y: 664.0, r: 4.0, status: 'pending' },
+  { id: 'ZS048', type: '双管旋喷桩', x: 1284.2, y: 644.2, r: 4.0, status: 'pending' },
+  { id: 'ZS049', type: '双管旋喷桩', x: 1284.9, y: 624.5, r: 4.0, status: 'pending' },
+  { id: 'ZS050', type: '双管旋喷桩', x: 1285.6, y: 604.7, r: 4.0, status: 'pending' },
+  { id: 'ZS051', type: '双管旋喷桩', x: 1286.4, y: 585.0, r: 4.0, status: 'pending' },
+  { id: 'ZS052', type: '双管旋喷桩', x: 1287.1, y: 565.2, r: 4.0, status: 'pending' },
+  { id: 'ZS053', type: '双管旋喷桩', x: 1287.9, y: 545.5, r: 4.0, status: 'pending' },
+  { id: 'ZS054', type: '双管旋喷桩', x: 1288.6, y: 525.8, r: 4.0, status: 'pending' },
+  { id: 'ZS055', type: '双管旋喷桩', x: 1289.3, y: 506.0, r: 4.0, status: 'pending' },
+  { id: 'ZS056', type: '双管旋喷桩', x: 1290.1, y: 486.3, r: 4.0, status: 'pending' },
+  { id: 'ZS057', type: '双管旋喷桩', x: 1290.8, y: 466.5, r: 4.0, status: 'pending' },
+  { id: 'ZS058', type: '双管旋喷桩', x: 1291.6, y: 446.8, r: 4.0, status: 'pending' },
+  { id: 'ZS059', type: '双管旋喷桩', x: 1292.3, y: 427.0, r: 4.0, status: 'pending' },
+  { id: 'ZS060', type: '双管旋喷桩', x: 1293.0, y: 407.3, r: 4.0, status: 'pending' },
+  { id: 'ZS061', type: '双管旋喷桩', x: 1293.8, y: 387.6, r: 4.0, status: 'pending' },
+  { id: 'ZS062', type: '双管旋喷桩', x: 1294.5, y: 367.8, r: 4.0, status: 'pending' },
+  { id: 'ZS063', type: '双管旋喷桩', x: 1295.3, y: 348.1, r: 4.0, status: 'pending' },
+  { id: 'ZS064', type: '双管旋喷桩', x: 1296.0, y: 328.3, r: 4.0, status: 'pending' },
+  { id: 'ZS065', type: '双管旋喷桩', x: 1296.7, y: 308.6, r: 4.0, status: 'pending' },
+  { id: 'ZS066', type: '双管旋喷桩', x: 1297.5, y: 288.8, r: 4.0, status: 'pending' },
+  { id: 'ZS067', type: '双管旋喷桩', x: 1298.2, y: 269.1, r: 4.0, status: 'pending' },
+  { id: 'ZS068', type: '双管旋喷桩', x: 1299.0, y: 249.4, r: 4.0, status: 'pending' },
+  { id: 'ZS069', type: '双管旋喷桩', x: 1299.7, y: 229.6, r: 4.0, status: 'pending' },
+  { id: 'ZS070', type: '双管旋喷桩', x: 1300.4, y: 209.9, r: 4.0, status: 'pending' },
+  { id: 'ZS071', type: '咬合桩-素桩', x: 1296.1, y: 192.7, r: 5.5, status: 'pending' },
+  { id: 'ZS072', type: '咬合桩-素桩', x: 1278.5, y: 192.7, r: 5.5, status: 'pending' },
+  { id: 'ZS073', type: '咬合桩-素桩', x: 1261.0, y: 192.6, r: 5.5, status: 'pending' },
+  { id: 'ZS074', type: '咬合桩-素桩', x: 1243.4, y: 192.5, r: 5.5, status: 'pending' },
+  { id: 'ZS075', type: '咬合桩-素桩', x: 1225.8, y: 192.5, r: 5.5, status: 'pending' },
+  { id: 'ZS076', type: '咬合桩-素桩', x: 1208.3, y: 192.4, r: 5.5, status: 'pending' },
+  { id: 'ZS077', type: '咬合桩-素桩', x: 1190.7, y: 192.3, r: 5.5, status: 'pending' },
+  { id: 'ZS078', type: '咬合桩-素桩', x: 1173.2, y: 192.2, r: 5.5, status: 'pending' },
+  { id: 'ZS079', type: '咬合桩-素桩', x: 1155.6, y: 192.2, r: 5.5, status: 'pending' },
+  { id: 'ZS080', type: '咬合桩-素桩', x: 1138.0, y: 192.1, r: 5.5, status: 'pending' },
+  { id: 'ZS081', type: '咬合桩-素桩', x: 1120.5, y: 192.0, r: 5.5, status: 'pending' },
+  { id: 'ZS082', type: '咬合桩-素桩', x: 1102.9, y: 192.0, r: 5.5, status: 'pending' },
+  { id: 'ZS083', type: '咬合桩-素桩', x: 1085.4, y: 191.9, r: 5.5, status: 'pending' },
+  { id: 'ZS084', type: '咬合桩-素桩', x: 1067.8, y: 191.8, r: 5.5, status: 'pending' },
+  { id: 'ZS085', type: '咬合桩-素桩', x: 1050.2, y: 191.8, r: 5.5, status: 'pending' },
+  { id: 'ZS086', type: '咬合桩-素桩', x: 1032.7, y: 191.7, r: 5.5, status: 'pending' },
+  { id: 'ZS087', type: '咬合桩-素桩', x: 1015.1, y: 191.6, r: 5.5, status: 'pending' },
+  { id: 'ZS088', type: '咬合桩-素桩', x: 997.5, y: 191.6, r: 5.5, status: 'pending' },
+  { id: 'ZS089', type: '咬合桩-素桩', x: 980.0, y: 191.5, r: 5.5, status: 'pending' },
+  { id: 'ZS090', type: '咬合桩-素桩', x: 962.4, y: 191.4, r: 5.5, status: 'pending' },
+  { id: 'ZS091', type: '咬合桩-素桩', x: 944.9, y: 191.4, r: 5.5, status: 'pending' },
+  { id: 'ZS092', type: '咬合桩-素桩', x: 927.3, y: 191.3, r: 5.5, status: 'pending' },
+  { id: 'ZS093', type: '咬合桩-素桩', x: 909.7, y: 191.2, r: 5.5, status: 'pending' },
+  { id: 'ZS094', type: '咬合桩-素桩', x: 892.2, y: 191.2, r: 5.5, status: 'pending' },
+  { id: 'ZS095', type: '咬合桩-素桩', x: 874.6, y: 191.1, r: 5.5, status: 'pending' },
+  { id: 'ZS096', type: '咬合桩-素桩', x: 857.0, y: 191.0, r: 5.5, status: 'pending' },
+  { id: 'ZS097', type: '咬合桩-素桩', x: 839.5, y: 191.0, r: 5.5, status: 'pending' },
+  { id: 'ZS098', type: '咬合桩-素桩', x: 821.9, y: 190.9, r: 5.5, status: 'pending' },
+  { id: 'ZS099', type: '咬合桩-素桩', x: 804.4, y: 190.8, r: 5.5, status: 'pending' },
+  { id: 'ZS100', type: '咬合桩-素桩', x: 786.8, y: 190.8, r: 5.5, status: 'pending' },
+  { id: 'ZS101', type: '咬合桩-素桩', x: 769.2, y: 190.7, r: 5.5, status: 'pending' },
+  { id: 'ZS102', type: '咬合桩-素桩', x: 751.7, y: 190.6, r: 5.5, status: 'pending' },
+  { id: 'ZS103', type: '咬合桩-素桩', x: 734.1, y: 190.5, r: 5.5, status: 'pending' },
+  { id: 'ZS104', type: '咬合桩-素桩', x: 716.8, y: 192.8, r: 5.5, status: 'pending' },
+  { id: 'ZS105', type: '咬合桩-素桩', x: 699.9, y: 197.4, r: 5.5, status: 'pending' },
+  { id: 'ZS106', type: '咬合桩-素桩', x: 683.2, y: 203.0, r: 5.5, status: 'pending' },
+  { id: 'ZS107', type: '咬合桩-素桩', x: 666.9, y: 209.5, r: 5.5, status: 'pending' },
+  { id: 'ZS108', type: '咬合桩-素桩', x: 651.1, y: 217.0, r: 5.5, status: 'pending' },
+  { id: 'ZS109', type: '咬合桩-素桩', x: 635.6, y: 225.5, r: 5.5, status: 'pending' },
+  { id: 'ZS110', type: '咬合桩-素桩', x: 620.4, y: 234.3, r: 5.5, status: 'pending' },
+  { id: 'ZS111', type: '咬合桩-素桩', x: 603.3, y: 236.5, r: 5.5, status: 'pending' },
+  { id: 'ZS112', type: '咬合桩-素桩', x: 585.8, y: 237.1, r: 5.5, status: 'pending' },
+  { id: 'ZS113', type: '咬合桩-素桩', x: 568.2, y: 237.6, r: 5.5, status: 'pending' },
+  { id: 'ZS114', type: '咬合桩-素桩', x: 550.7, y: 238.1, r: 5.5, status: 'pending' },
+  { id: 'ZS115', type: '咬合桩-素桩', x: 533.1, y: 238.6, r: 5.5, status: 'pending' },
+  { id: 'ZS116', type: '咬合桩-素桩', x: 515.6, y: 239.1, r: 5.5, status: 'pending' },
+  { id: 'ZS117', type: '咬合桩-素桩', x: 498.0, y: 239.6, r: 5.5, status: 'pending' },
+  { id: 'ZS118', type: '咬合桩-素桩', x: 480.4, y: 240.2, r: 5.5, status: 'pending' },
+  { id: 'ZS119', type: '咬合桩-素桩', x: 462.9, y: 240.7, r: 5.5, status: 'pending' },
+  { id: 'ZS120', type: '咬合桩-素桩', x: 445.3, y: 241.2, r: 5.5, status: 'pending' },
+  { id: 'ZS121', type: '咬合桩-素桩', x: 427.8, y: 241.7, r: 5.5, status: 'pending' },
+  { id: 'ZS122', type: '咬合桩-素桩', x: 410.2, y: 242.2, r: 5.5, status: 'pending' },
+  { id: 'ZS123', type: '咬合桩-素桩', x: 392.7, y: 242.7, r: 5.5, status: 'pending' },
+  { id: 'ZS124', type: '咬合桩-素桩', x: 375.1, y: 243.3, r: 5.5, status: 'pending' },
+  { id: 'ZS125', type: '咬合桩-素桩', x: 357.6, y: 243.8, r: 5.5, status: 'pending' },
+  { id: 'ZS126', type: '咬合桩-素桩', x: 340.0, y: 244.3, r: 5.5, status: 'pending' },
+  { id: 'ZS127', type: '咬合桩-素桩', x: 322.5, y: 244.8, r: 5.5, status: 'pending' },
+  { id: 'ZS128', type: '咬合桩-素桩', x: 304.9, y: 245.3, r: 5.5, status: 'pending' },
+  { id: 'ZS129', type: '咬合桩-素桩', x: 287.3, y: 245.9, r: 5.5, status: 'pending' },
+  { id: 'ZS130', type: '咬合桩-素桩', x: 269.8, y: 246.4, r: 5.5, status: 'pending' },
+  { id: 'ZS131', type: '咬合桩-素桩', x: 252.2, y: 246.9, r: 5.5, status: 'pending' },
+  { id: 'ZS132', type: '咬合桩-素桩', x: 234.7, y: 247.4, r: 5.5, status: 'pending' },
+  { id: 'ZS133', type: '咬合桩-素桩', x: 217.1, y: 247.9, r: 5.5, status: 'pending' },
+  { id: 'ZS134', type: '咬合桩-素桩', x: 199.6, y: 248.4, r: 5.5, status: 'pending' },
+  { id: 'ZS135', type: '咬合桩-素桩', x: 182.0, y: 249.0, r: 5.5, status: 'pending' },
+  { id: 'ZS136', type: '双管旋喷桩', x: 166.6, y: 254.1, r: 4.0, status: 'pending' },
+  { id: 'ZS137', type: '双管旋喷桩', x: 166.9, y: 273.9, r: 4.0, status: 'pending' },
+  { id: 'ZS138', type: '双管旋喷桩', x: 167.3, y: 293.7, r: 4.0, status: 'pending' },
+  { id: 'ZS139', type: '双管旋喷桩', x: 167.6, y: 313.4, r: 4.0, status: 'pending' },
+  { id: 'ZS140', type: '双管旋喷桩', x: 167.9, y: 333.2, r: 4.0, status: 'pending' },
+  { id: 'ZS141', type: '双管旋喷桩', x: 168.3, y: 352.9, r: 4.0, status: 'pending' },
+  { id: 'ZS142', type: '双管旋喷桩', x: 168.6, y: 372.7, r: 4.0, status: 'pending' },
+  { id: 'ZS143', type: '双管旋喷桩', x: 169.0, y: 392.4, r: 4.0, status: 'pending' },
+  { id: 'ZS144', type: '双管旋喷桩', x: 169.3, y: 412.2, r: 4.0, status: 'pending' },
+  { id: 'ZS145', type: '双管旋喷桩', x: 169.6, y: 431.9, r: 4.0, status: 'pending' },
+  { id: 'ZS146', type: '双管旋喷桩', x: 170.0, y: 451.7, r: 4.0, status: 'pending' },
+  { id: 'ZS147', type: '双管旋喷桩', x: 170.3, y: 471.4, r: 4.0, status: 'pending' },
+  { id: 'ZS148', type: '双管旋喷桩', x: 170.6, y: 491.2, r: 4.0, status: 'pending' },
+  { id: 'ZS149', type: '双管旋喷桩', x: 171.0, y: 510.9, r: 4.0, status: 'pending' },
+  { id: 'ZS150', type: '双管旋喷桩', x: 171.3, y: 530.7, r: 4.0, status: 'pending' },
+  { id: 'ZS151', type: '双管旋喷桩', x: 171.6, y: 550.5, r: 4.0, status: 'pending' },
+  { id: 'LZ001', type: '立柱桩', x: 543.0, y: 663.5, r: 18.0, status: 'pending' },
+  { id: 'LZ002', type: '立柱桩', x: 718.6, y: 660.4, r: 18.0, status: 'pending' },
+  { id: 'LZ003', type: '立柱桩', x: 894.2, y: 657.4, r: 18.0, status: 'pending' },
+  { id: 'LZ004', type: '立柱桩', x: 1242.1, y: 711.7, r: 18.0, status: 'pending' },
+  { id: 'LZ005', type: '立柱桩', x: 1105.8, y: 676.3, r: 18.0, status: 'pending' },
+  { id: 'LZ006', type: '立柱桩', x: 1199.9, y: 668.6, r: 18.0, status: 'pending' },
+  { id: 'LZ007', type: '立柱桩', x: 1157.6, y: 625.5, r: 18.0, status: 'pending' },
+  { id: 'LZ008', type: '立柱桩', x: 1216.4, y: 567.9, r: 18.0, status: 'pending' },
+  { id: 'LZ009', type: '立柱桩', x: 903.5, y: 549.4, r: 18.0, status: 'pending' },
+  { id: 'LZ010', type: '立柱桩', x: 728.5, y: 546.3, r: 18.0, status: 'pending' },
+  { id: 'LZ011', type: '立柱桩', x: 553.4, y: 543.2, r: 18.0, status: 'pending' },
+  { id: 'LZ012', type: '立柱桩', x: 1226.0, y: 378.9, r: 18.0, status: 'pending' },
+  { id: 'LZ013', type: '立柱桩', x: 917.3, y: 391.3, r: 18.0, status: 'pending' },
+  { id: 'LZ014', type: '立柱桩', x: 1151.7, y: 301.5, r: 18.0, status: 'pending' },
+  { id: 'LZ015', type: '立柱桩', x: 1206.4, y: 267.3, r: 18.0, status: 'pending' },
+  { id: 'LZ016', type: '立柱桩', x: 1109.7, y: 257.7, r: 18.0, status: 'pending' },
+  { id: 'LZ017', type: '立柱桩', x: 741.1, y: 400.5, r: 18.0, status: 'pending' },
+  { id: 'LZ018', type: '立柱桩', x: 926.4, y: 285.4, r: 18.0, status: 'pending' },
+  { id: 'LZ019', type: '立柱桩', x: 751.2, y: 284.7, r: 18.0, status: 'pending' },
+  { id: 'LZ020', type: '立柱桩', x: 565.0, y: 409.8, r: 18.0, status: 'pending' },
+  { id: 'LZ021', type: '立柱桩', x: 574.8, y: 296.9, r: 18.0, status: 'pending' },
+  { id: 'LZ022', type: '立柱桩', x: 390.7, y: 341.1, r: 18.0, status: 'pending' },
+  { id: 'LZ023', type: '立柱桩', x: 350.8, y: 298.7, r: 18.0, status: 'pending' },
+  { id: 'LZ024', type: '立柱桩', x: 245.6, y: 317.7, r: 18.0, status: 'pending' },
+  { id: 'LZ025', type: '立柱桩', x: 238.9, y: 404.0, r: 18.0, status: 'pending' },
+  { id: 'LZ026', type: '立柱桩', x: 268.6, y: 456.0, r: 18.0, status: 'pending' },
+];
+// Total: 152 荤桩 + 151 素桩 + 72 微型桩 + 45 双管旋喷 + 26 立柱 = 446
+
+// ---- Real data: Beams ----
+const beams = [
+  { id: 'GL1', type: '冠梁', path: [{x:469.6,y:758.0}, {x:469.4,y:744.8}, {x:270.6,y:748.3}, {x:265.9,y:747.8}, {x:185.5,y:749.2}, {x:184.4,y:686.0}, {x:183.5,y:686.0}, {x:181.8,y:586.5}, {x:178.9,y:586.6}, {x:173.2,y:255.8}, {x:618.1,y:242.7}, {x:632.8,y:234.9}, {x:727.6,y:197.1}, {x:1294.2,y:199.3}, {x:1273.8,y:744.1}, {x:469.6,y:758.0}], totalLength: 298.3, segments: [] },
+  { id: 'GL2', type: '冠梁', path: [{x:463.8,y:771.3}, {x:1286.5,y:757.0}, {x:1307.9,y:186.2}, {x:726.3,y:183.9}, {x:625.8,y:223.7}, {x:615.0,y:229.6}, {x:159.8,y:243.0}, {x:165.8,y:593.5}], totalLength: 264.4, segments: [] },
+  { id: 'DC001', type: '对撑', path: [{x:1130.1,y:727.8},{x:1110.6,y:746.9}], totalLength: 2.5, segments: [] },
+  { id: 'DC002', type: '对撑', path: [{x:1130.9,y:719.4},{x:1130.1,y:727.8}], totalLength: 0.8, segments: [] },
+  { id: 'DC003', type: '对撑', path: [{x:709.5,y:689.0},{x:703.9,y:754.0}], totalLength: 5.9, segments: [] },
+  { id: 'DC004', type: '对撑', path: [{x:658.4,y:754.7},{x:706.8,y:687.9}], totalLength: 7.5, segments: [] },
+  { id: 'DC005', type: '对撑', path: [{x:722.8,y:687.6},{x:717.1,y:753.7}], totalLength: 6.0, segments: [] },
+  { id: 'DC006', type: '对撑', path: [{x:726.0,y:686.9},{x:763.3,y:752.9}], totalLength: 6.9, segments: [] },
+  { id: 'DC007', type: '对撑', path: [{x:879.5,y:750.9},{x:885.1,y:686.0}], totalLength: 5.9, segments: [] },
+  { id: 'DC008', type: '对撑', path: [{x:1042.0,y:748.1},{x:1102.5,y:688.7}], totalLength: 7.7, segments: [] },
+  { id: 'DC009', type: '对撑', path: [{x:834.0,y:751.7},{x:882.3,y:685.0}], totalLength: 7.5, segments: [] },
+  { id: 'DC010', type: '对撑', path: [{x:892.7,y:750.7},{x:898.4,y:684.6}], totalLength: 6.0, segments: [] },
+  { id: 'DC011', type: '对撑', path: [{x:901.6,y:683.9},{x:938.9,y:749.9}], totalLength: 6.9, segments: [] },
+  { id: 'DC012', type: '对撑', path: [{x:1144.3,y:713.9},{x:1137.2,y:713.2}], totalLength: 0.6, segments: [] },
+  { id: 'DC013', type: '对撑', path: [{x:641.9,y:755.0},{x:703.5,y:670.0}], totalLength: 9.6, segments: [] },
+  { id: 'DC014', type: '对撑', path: [{x:731.6,y:670.0},{x:778.3,y:752.7}], totalLength: 8.7, segments: [] },
+  { id: 'DC015', type: '对撑', path: [{x:817.5,y:752.0},{x:879.1,y:667.0}], totalLength: 9.6, segments: [] },
+  { id: 'DC016', type: '对撑', path: [{x:903.6,y:660.7},{x:953.9,y:749.6}], totalLength: 9.3, segments: [] },
+  { id: 'DC017', type: '对撑', path: [{x:1109.6,y:689.4},{x:1130.9,y:719.4}], totalLength: 3.4, segments: [] },
+  { id: 'DC018', type: '对撑', path: [{x:1116.0,y:683.2},{x:1137.2,y:713.2}], totalLength: 3.4, segments: [] },
+  { id: 'DC019', type: '对撑', path: [{x:1102.5,y:688.7},{x:1109.6,y:689.4}], totalLength: 0.6, segments: [] },
+  { id: 'DC020', type: '对撑', path: [{x:709.5,y:689.0},{x:706.8,y:687.9}], totalLength: 0.3, segments: [] },
+  { id: 'DC021', type: '对撑', path: [{x:722.8,y:687.6},{x:726.0,y:686.9}], totalLength: 0.3, segments: [] },
+  { id: 'DC022', type: '对撑', path: [{x:882.3,y:685.0},{x:885.1,y:686.0}], totalLength: 0.3, segments: [] },
+  { id: 'DC023', type: '对撑', path: [{x:898.4,y:684.6},{x:901.6,y:683.9}], totalLength: 0.3, segments: [] },
+  { id: 'DC024', type: '对撑', path: [{x:1116.0,y:683.2},{x:1116.7,y:674.8}], totalLength: 0.8, segments: [] },
+  { id: 'DC025', type: '对撑', path: [{x:701.2,y:665.7},{x:703.5,y:670.0}], totalLength: 0.4, segments: [] },
+  { id: 'DC026', type: '对撑', path: [{x:731.6,y:670.0},{x:734.3,y:665.1}], totalLength: 0.5, segments: [] },
+  { id: 'DC027', type: '对撑', path: [{x:558.3,y:668.1},{x:701.2,y:665.7}], totalLength: 13.0, segments: [] },
+  { id: 'DC028', type: '对撑', path: [{x:876.8,y:662.6},{x:879.1,y:667.0}], totalLength: 0.4, segments: [] },
+  { id: 'DC029', type: '对撑', path: [{x:734.3,y:665.1},{x:876.8,y:662.6}], totalLength: 13.0, segments: [] },
+  { id: 'DC030', type: '对撑', path: [{x:555.5,y:658.3},{x:706.9,y:655.7}], totalLength: 13.8, segments: [] },
+  { id: 'DC031', type: '对撑', path: [{x:1116.7,y:674.8},{x:1155.2,y:637.1}], totalLength: 4.9, segments: [] },
+  { id: 'DC032', type: '对撑', path: [{x:903.6,y:660.7},{x:901.4,y:650.5}], totalLength: 1.0, segments: [] },
+  { id: 'DC033', type: '对撑', path: [{x:731.1,y:655.3},{x:882.5,y:652.7}], totalLength: 13.8, segments: [] },
+  { id: 'DC034', type: '对撑', path: [{x:706.9,y:655.7},{x:712.9,y:650.1}], totalLength: 0.7, segments: [] },
+  { id: 'DC035', type: '对撑', path: [{x:726.1,y:649.9},{x:731.1,y:655.3}], totalLength: 0.7, segments: [] },
+  { id: 'DC036', type: '对撑', path: [{x:1162.9,y:637.2},{x:1188.3,y:663.1}], totalLength: 3.3, segments: [] },
+  { id: 'DC037', type: '对撑', path: [{x:882.5,y:652.7},{x:888.5,y:647.1}], totalLength: 0.7, segments: [] },
+  { id: 'DC038', type: '对撑', path: [{x:1169.2,y:631.1},{x:1194.6,y:656.9}], totalLength: 3.3, segments: [] },
+  { id: 'DC039', type: '对撑', path: [{x:1155.2,y:637.1},{x:1162.9,y:637.2}], totalLength: 0.7, segments: [] },
+  { id: 'DC040', type: '对撑', path: [{x:1169.2,y:631.1},{x:1169.3,y:623.3}], totalLength: 0.7, segments: [] },
+  { id: 'DC041', type: '对撑', path: [{x:1022.8,y:748.4},{x:1283.2,y:493.2}], totalLength: 33.2, segments: [] },
+  { id: 'DC042', type: '对撑', path: [{x:1247.1,y:605.5},{x:1247.0,y:613.2}], totalLength: 0.7, segments: [] },
+  { id: 'DC043', type: '对撑', path: [{x:888.5,y:647.1},{x:896.0,y:559.7}], totalLength: 8.0, segments: [] },
+  { id: 'DC044', type: '对撑', path: [{x:734.2,y:556.8},{x:726.1,y:649.9}], totalLength: 8.5, segments: [] },
+  { id: 'DC045', type: '对撑', path: [{x:721.0,y:556.6},{x:712.9,y:650.1}], totalLength: 8.6, segments: [] },
+  { id: 'DC046', type: '对撑', path: [{x:550.5,y:652.9},{x:559.1,y:553.7}], totalLength: 9.1, segments: [] },
+  { id: 'DC047', type: '对撑', path: [{x:1169.3,y:623.3},{x:1214.0,y:579.5}], totalLength: 5.7, segments: [] },
+  { id: 'DC048', type: '对撑', path: [{x:1253.4,y:599.3},{x:1261.1,y:599.4}], totalLength: 0.7, segments: [] },
+  { id: 'DC049', type: '对撑', path: [{x:1221.7,y:579.6},{x:1247.1,y:605.5}], totalLength: 3.3, segments: [] },
+  { id: 'DC050', type: '对撑', path: [{x:1279.9,y:580.9},{x:1261.1,y:599.4}], totalLength: 2.4, segments: [] },
+  { id: 'DC051', type: '对撑', path: [{x:1228.0,y:573.4},{x:1253.4,y:599.3}], totalLength: 3.3, segments: [] },
+  { id: 'DC052', type: '对撑', path: [{x:1214.0,y:579.5},{x:1221.7,y:579.6}], totalLength: 0.7, segments: [] },
+  { id: 'DC053', type: '对撑', path: [{x:1228.0,y:573.4},{x:1228.1,y:565.7}], totalLength: 0.7, segments: [] },
+  { id: 'DC054', type: '对撑', path: [{x:891.0,y:554.1},{x:896.0,y:559.7}], totalLength: 0.7, segments: [] },
+  { id: 'DC055', type: '对撑', path: [{x:734.2,y:556.8},{x:740.1,y:551.4}], totalLength: 0.7, segments: [] },
+  { id: 'DC056', type: '对撑', path: [{x:716.0,y:551.0},{x:721.0,y:556.6}], totalLength: 0.7, segments: [] },
+  { id: 'DC057', type: '对撑', path: [{x:740.1,y:551.4},{x:891.0,y:554.1}], totalLength: 13.7, segments: [] },
+  { id: 'DC058', type: '对撑', path: [{x:565.1,y:548.3},{x:559.1,y:553.7}], totalLength: 0.7, segments: [] },
+  { id: 'DC059', type: '对撑', path: [{x:565.1,y:548.3},{x:716.0,y:551.0}], totalLength: 13.7, segments: [] },
+  { id: 'DC060', type: '对撑', path: [{x:741.0,y:541.6},{x:891.9,y:544.3}], totalLength: 13.7, segments: [] },
+  { id: 'DC061', type: '对撑', path: [{x:891.9,y:544.3},{x:897.8,y:538.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC062', type: '对撑', path: [{x:565.9,y:538.5},{x:716.8,y:541.2}], totalLength: 13.7, segments: [] },
+  { id: 'DC063', type: '对撑', path: [{x:1228.1,y:565.7},{x:1282.5,y:512.3}], totalLength: 6.9, segments: [] },
+  { id: 'DC064', type: '对撑', path: [{x:741.0,y:541.6},{x:736.0,y:536.0}], totalLength: 0.7, segments: [] },
+  { id: 'DC065', type: '对撑', path: [{x:722.8,y:535.8},{x:716.8,y:541.2}], totalLength: 0.7, segments: [] },
+  { id: 'DC066', type: '对撑', path: [{x:565.9,y:538.5},{x:560.9,y:532.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC067', type: '对撑', path: [{x:537.0,y:655.7},{x:567.5,y:304.8}], totalLength: 32.1, segments: [] },
+  { id: 'DC068', type: '对撑', path: [{x:560.9,y:532.9},{x:570.7,y:419.9}], totalLength: 10.3, segments: [] },
+  { id: 'DC069', type: '对撑', path: [{x:733.6,y:411.3},{x:722.8,y:535.8}], totalLength: 11.4, segments: [] },
+  { id: 'DC070', type: '对撑', path: [{x:746.9,y:410.6},{x:736.0,y:536.0}], totalLength: 11.5, segments: [] },
+  { id: 'DC071', type: '对撑', path: [{x:901.4,y:650.5},{x:932.4,y:293.4}], totalLength: 32.7, segments: [] },
+  { id: 'DC072', type: '对撑', path: [{x:897.8,y:538.9},{x:909.7,y:402.0}], totalLength: 12.5, segments: [] },
+  { id: 'DC073', type: '对撑', path: [{x:259.8,y:449.4},{x:258.5,y:457.9}], totalLength: 0.8, segments: [] },
+  { id: 'DC074', type: '对撑', path: [{x:266.4,y:443.2},{x:273.1,y:444.2}], totalLength: 0.6, segments: [] },
+  { id: 'DC075', type: '对撑', path: [{x:234.4,y:415.7},{x:176.9,y:469.8}], totalLength: 7.2, segments: [] },
+  { id: 'DC076', type: '对撑', path: [{x:241.1,y:416.8},{x:259.8,y:449.4}], totalLength: 3.4, segments: [] },
+  { id: 'DC077', type: '对撑', path: [{x:247.7,y:410.6},{x:266.4,y:443.2}], totalLength: 3.4, segments: [] },
+  { id: 'DC078', type: '对撑', path: [{x:570.7,y:419.9},{x:576.7,y:414.1}], totalLength: 0.8, segments: [] },
+  { id: 'DC079', type: '对撑', path: [{x:234.4,y:415.7},{x:241.1,y:416.8}], totalLength: 0.6, segments: [] },
+  { id: 'DC080', type: '对撑', path: [{x:576.7,y:414.1},{x:728.6,y:406.1}], totalLength: 13.9, segments: [] },
+  { id: 'DC081', type: '对撑', path: [{x:733.6,y:411.3},{x:728.6,y:406.1}], totalLength: 0.7, segments: [] },
+  { id: 'DC082', type: '对撑', path: [{x:752.8,y:404.9},{x:746.9,y:410.6}], totalLength: 0.8, segments: [] },
+  { id: 'DC083', type: '对撑', path: [{x:278.8,y:358.9},{x:176.6,y:455.0}], totalLength: 12.8, segments: [] },
+  { id: 'DC084', type: '对撑', path: [{x:1237.6,y:381.5},{x:1285.5,y:431.5}], totalLength: 6.3, segments: [] },
+  { id: 'DC085', type: '对撑', path: [{x:247.7,y:410.6},{x:248.9,y:402.0}], totalLength: 0.8, segments: [] },
+  { id: 'DC086', type: '对撑', path: [{x:577.5,y:404.2},{x:572.5,y:399.0}], totalLength: 0.7, segments: [] },
+  { id: 'DC087', type: '对撑', path: [{x:752.8,y:404.9},{x:904.7,y:396.9}], totalLength: 13.9, segments: [] },
+  { id: 'DC088', type: '对撑', path: [{x:577.5,y:404.2},{x:729.4,y:396.2}], totalLength: 13.9, segments: [] },
+  { id: 'DC089', type: '对撑', path: [{x:904.7,y:396.9},{x:909.7,y:402.0}], totalLength: 0.7, segments: [] },
+  { id: 'DC090', type: '对撑', path: [{x:178.2,y:548.6},{x:499.7,y:246.2}], totalLength: 40.2, segments: [] },
+  { id: 'DC091', type: '对撑', path: [{x:273.1,y:444.2},{x:379.7,y:343.9}], totalLength: 13.3, segments: [] },
+  { id: 'DC092', type: '对撑', path: [{x:729.4,y:396.2},{x:735.4,y:390.4}], totalLength: 0.8, segments: [] },
+  { id: 'DC093', type: '对撑', path: [{x:748.7,y:389.7},{x:753.7,y:394.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC094', type: '对撑', path: [{x:753.7,y:394.9},{x:905.6,y:386.9}], totalLength: 13.9, segments: [] },
+  { id: 'DC095', type: '对撑', path: [{x:905.6,y:386.9},{x:911.5,y:381.2}], totalLength: 0.8, segments: [] },
+  { id: 'DC096', type: '对撑', path: [{x:1237.6,y:381.5},{x:1237.7,y:373.7}], totalLength: 0.7, segments: [] },
+  { id: 'DC097', type: '对撑', path: [{x:1231.7,y:367.4},{x:1223.9,y:367.2}], totalLength: 0.7, segments: [] },
+  { id: 'DC098', type: '对撑', path: [{x:1237.7,y:373.7},{x:1265.9,y:346.7}], totalLength: 3.6, segments: [] },
+  { id: 'DC099', type: '对撑', path: [{x:347.3,y:309.5},{x:248.9,y:402.0}], totalLength: 12.3, segments: [] },
+  { id: 'DC100', type: '对撑', path: [{x:278.6,y:351.6},{x:278.8,y:358.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC101', type: '对撑', path: [{x:1288.1,y:362.0},{x:1273.6,y:346.9}], totalLength: 1.9, segments: [] },
+  { id: 'DC102', type: '对撑', path: [{x:1231.7,y:367.4},{x:1259.8,y:340.4}], totalLength: 3.6, segments: [] },
+  { id: 'DC103', type: '对撑', path: [{x:1265.9,y:346.7},{x:1273.6,y:346.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC104', type: '对撑', path: [{x:285.0,y:345.5},{x:293.2,y:345.3}], totalLength: 0.7, segments: [] },
+  { id: 'DC105', type: '对撑', path: [{x:743.6,y:295.6},{x:735.4,y:390.4}], totalLength: 8.7, segments: [] },
+  { id: 'DC106', type: '对撑', path: [{x:756.9,y:295.2},{x:748.7,y:389.7}], totalLength: 8.6, segments: [] },
+  { id: 'DC107', type: '对撑', path: [{x:379.7,y:343.9},{x:380.0,y:336.2}], totalLength: 0.7, segments: [] },
+  { id: 'DC108', type: '对撑', path: [{x:911.5,y:381.2},{x:918.9,y:295.8}], totalLength: 7.8, segments: [] },
+  { id: 'DC109', type: '对撑', path: [{x:1259.8,y:340.4},{x:1259.9,y:332.6}], totalLength: 0.7, segments: [] },
+  { id: 'DC110', type: '对撑', path: [{x:1164.3,y:305.1},{x:1223.9,y:367.2}], totalLength: 7.8, segments: [] },
+  { id: 'DC111', type: '对撑', path: [{x:386.4,y:330.1},{x:394.1,y:330.4}], totalLength: 0.7, segments: [] },
+  { id: 'DC112', type: '对撑', path: [{x:1043.6,y:198.3},{x:1284.9,y:449.8}], totalLength: 31.7, segments: [] },
+  { id: 'DC113', type: '对撑', path: [{x:355.1,y:309.7},{x:380.0,y:336.2}], totalLength: 3.3, segments: [] },
+  { id: 'DC114', type: '对撑', path: [{x:361.5,y:303.7},{x:386.4,y:330.1}], totalLength: 3.3, segments: [] },
+  { id: 'DC115', type: '对撑', path: [{x:347.3,y:309.5},{x:355.1,y:309.7}], totalLength: 0.7, segments: [] },
+  { id: 'DC116', type: '对撑', path: [{x:1165.1,y:298.2},{x:1164.3,y:305.1}], totalLength: 0.6, segments: [] },
+  { id: 'DC117', type: '对撑', path: [{x:361.5,y:303.7},{x:361.7,y:295.9}], totalLength: 0.7, segments: [] },
+  { id: 'DC118', type: '对撑', path: [{x:395.3,y:249.3},{x:293.2,y:345.3}], totalLength: 12.8, segments: [] },
+  { id: 'DC119', type: '对撑', path: [{x:913.9,y:290.3},{x:918.9,y:295.8}], totalLength: 0.7, segments: [] },
+  { id: 'DC120', type: '对撑', path: [{x:1158.9,y:291.7},{x:1150.5,y:290.7}], totalLength: 0.8, segments: [] },
+  { id: 'DC121', type: '对撑', path: [{x:913.9,y:290.3},{x:762.8,y:289.7}], totalLength: 13.8, segments: [] },
+  { id: 'DC122', type: '对撑', path: [{x:394.1,y:330.4},{x:483.1,y:246.7}], totalLength: 11.1, segments: [] },
+  { id: 'DC123', type: '对撑', path: [{x:932.4,y:293.4},{x:936.2,y:283.6}], totalLength: 1.0, segments: [] },
+  { id: 'DC124', type: '对撑', path: [{x:1165.1,y:298.2},{x:1198.8,y:276.6}], totalLength: 3.6, segments: [] },
+  { id: 'DC125', type: '对撑', path: [{x:1158.9,y:291.7},{x:1192.6,y:270.2}], totalLength: 3.6, segments: [] },
+  { id: 'DC126', type: '对撑', path: [{x:910.3,y:280.4},{x:768.8,y:279.9}], totalLength: 12.9, segments: [] },
+  { id: 'DC127', type: '对撑', path: [{x:912.9,y:275.7},{x:910.3,y:280.4}], totalLength: 0.5, segments: [] },
+  { id: 'DC128', type: '对撑', path: [{x:1121.5,y:260.5},{x:1150.5,y:290.7}], totalLength: 3.8, segments: [] },
+  { id: 'DC129', type: '对撑', path: [{x:411.9,y:248.8},{x:361.7,y:295.9}], totalLength: 6.3, segments: [] },
+  { id: 'DC130', type: '对撑', path: [{x:922.1,y:259.2},{x:918.8,y:259.9}], totalLength: 0.3, segments: [] },
+  { id: 'DC131', type: '对撑', path: [{x:938.3,y:259.5},{x:935.4,y:258.3}], totalLength: 0.3, segments: [] },
+  { id: 'DC132', type: '对撑', path: [{x:1121.5,y:260.5},{x:1121.9,y:253.0}], totalLength: 0.7, segments: [] },
+  { id: 'DC133', type: '对撑', path: [{x:1115.8,y:246.6},{x:1107.9,y:246.3}], totalLength: 0.7, segments: [] },
+  { id: 'DC134', type: '对撑', path: [{x:936.2,y:283.6},{x:1002.7,y:198.2}], totalLength: 9.9, segments: [] },
+  { id: 'DC135', type: '对撑', path: [{x:1121.9,y:253.0},{x:1151.4,y:227.5}], totalLength: 3.6, segments: [] },
+  { id: 'DC136', type: '对撑', path: [{x:866.0,y:197.6},{x:912.9,y:275.7}], totalLength: 8.3, segments: [] },
+  { id: 'DC137', type: '对撑', path: [{x:1115.8,y:246.6},{x:1145.4,y:221.1}], totalLength: 3.6, segments: [] },
+  { id: 'DC138', type: '对撑', path: [{x:881.4,y:197.7},{x:918.8,y:259.9}], totalLength: 6.6, segments: [] },
+  { id: 'DC139', type: '对撑', path: [{x:938.3,y:259.5},{x:986.1,y:198.1}], totalLength: 7.1, segments: [] },
+  { id: 'DC140', type: '对撑', path: [{x:922.1,y:259.2},{x:927.4,y:197.9}], totalLength: 5.6, segments: [] },
+  { id: 'DC141', type: '对撑', path: [{x:935.4,y:258.3},{x:940.6,y:197.9}], totalLength: 5.5, segments: [] },
+  { id: 'DC142', type: '对撑', path: [{x:1151.4,y:227.5},{x:1159.4,y:227.8}], totalLength: 0.7, segments: [] },
+  { id: 'DC143', type: '对撑', path: [{x:1061.9,y:198.4},{x:1107.9,y:246.3}], totalLength: 6.0, segments: [] },
+  { id: 'DC144', type: '对撑', path: [{x:1145.4,y:221.1},{x:1145.7,y:213.6}], totalLength: 0.7, segments: [] },
+  { id: 'DC145', type: '对撑', path: [{x:1145.7,y:213.6},{x:1131.4,y:198.7}], totalLength: 1.9, segments: [] },
+  { id: 'JC001', type: '角撑', path: [{x:1198.4,y:745.4},{x:1230.5,y:714.0}], totalLength: 4.1, segments: [] },
+  { id: 'JC002', type: '角撑', path: [{x:528.3,y:757.0},{x:533.7,y:694.0}], totalLength: 5.8, segments: [] },
+  { id: 'JC003', type: '角撑', path: [{x:488.0,y:757.7},{x:531.2,y:693.0}], totalLength: 7.1, segments: [] },
+  { id: 'JC004', type: '角撑', path: [{x:541.5,y:756.8},{x:547.1,y:692.5}], totalLength: 5.9, segments: [] },
+  { id: 'JC005', type: '角撑', path: [{x:550.0,y:691.9},{x:582.4,y:756.1}], totalLength: 6.5, segments: [] },
+  { id: 'JC006', type: '角撑', path: [{x:1217.6,y:745.1},{x:1275.9,y:687.8}], totalLength: 7.4, segments: [] },
+  { id: 'JC007', type: '角撑', path: [{x:555.3,y:673.1},{x:597.1,y:755.8}], totalLength: 8.4, segments: [] },
+  { id: 'JC008', type: '角撑', path: [{x:1197.4,y:680.3},{x:1129.8,y:746.6}], totalLength: 8.6, segments: [] },
+  { id: 'JC009', type: '角撑', path: [{x:472.0,y:758.0},{x:533.5,y:665.8}], totalLength: 10.1, segments: [] },
+  { id: 'JC010', type: '角撑', path: [{x:1230.5,y:714.0},{x:1230.5,y:706.2}], totalLength: 0.7, segments: [] },
+  { id: 'JC011', type: '角撑', path: [{x:1236.8,y:700.1},{x:1244.6,y:700.1}], totalLength: 0.7, segments: [] },
+  { id: 'JC012', type: '角撑', path: [{x:531.2,y:693.0},{x:533.7,y:694.0}], totalLength: 0.2, segments: [] },
+  { id: 'JC013', type: '角撑', path: [{x:1205.2,y:680.3},{x:1230.5,y:706.2}], totalLength: 3.3, segments: [] },
+  { id: 'JC014', type: '角撑', path: [{x:1188.2,y:670.8},{x:1144.3,y:713.9}], totalLength: 5.6, segments: [] },
+  { id: 'JC015', type: '角撑', path: [{x:547.1,y:692.5},{x:550.0,y:691.9}], totalLength: 0.3, segments: [] },
+  { id: 'JC016', type: '角撑', path: [{x:1211.5,y:674.2},{x:1236.8,y:700.1}], totalLength: 3.3, segments: [] },
+  { id: 'JC017', type: '角撑', path: [{x:1244.6,y:700.1},{x:1276.6,y:668.7}], totalLength: 4.1, segments: [] },
+  { id: 'JC018', type: '角撑', path: [{x:1205.2,y:680.3},{x:1197.4,y:680.3}], totalLength: 0.7, segments: [] },
+  { id: 'JC019', type: '角撑', path: [{x:555.3,y:673.1},{x:558.3,y:668.1}], totalLength: 0.5, segments: [] },
+  { id: 'JC020', type: '角撑', path: [{x:1211.5,y:674.2},{x:1211.5,y:666.4}], totalLength: 0.7, segments: [] },
+  { id: 'JC021', type: '角撑', path: [{x:1188.3,y:663.1},{x:1188.2,y:670.8}], totalLength: 0.7, segments: [] },
+  { id: 'JC022', type: '角撑', path: [{x:533.5,y:665.8},{x:537.0,y:655.7}], totalLength: 1.0, segments: [] },
+  { id: 'JC023', type: '角撑', path: [{x:1194.6,y:656.9},{x:1202.3,y:657.0}], totalLength: 0.7, segments: [] },
+  { id: 'JC024', type: '角撑', path: [{x:555.5,y:658.3},{x:550.5,y:652.9}], totalLength: 0.7, segments: [] },
+  { id: 'JC025', type: '角撑', path: [{x:1247.0,y:613.2},{x:1202.3,y:657.0}], totalLength: 5.7, segments: [] },
+  { id: 'JC026', type: '角撑', path: [{x:1279.2,y:600.1},{x:1211.5,y:666.4}], totalLength: 8.6, segments: [] },
+  { id: 'JC027', type: '角撑', path: [{x:178.0,y:533.7},{x:258.5,y:457.9}], totalLength: 10.1, segments: [] },
+  { id: 'JC028', type: '角撑', path: [{x:175.5,y:391.1},{x:242.6,y:328.0}], totalLength: 8.4, segments: [] },
+  { id: 'JC029', type: '角撑', path: [{x:572.5,y:399.0},{x:580.5,y:306.9}], totalLength: 8.4, segments: [] },
+  { id: 'JC030', type: '角撑', path: [{x:175.3,y:376.3},{x:234.2,y:320.9}], totalLength: 7.4, segments: [] },
+  { id: 'JC031', type: '角撑', path: [{x:250.8,y:327.8},{x:278.6,y:351.6}], totalLength: 3.3, segments: [] },
+  { id: 'JC032', type: '角撑', path: [{x:257.2,y:321.8},{x:285.0,y:345.5}], totalLength: 3.3, segments: [] },
+  { id: 'JC033', type: '角撑', path: [{x:242.6,y:328.0},{x:250.8,y:327.8}], totalLength: 0.7, segments: [] },
+  { id: 'JC034', type: '角撑', path: [{x:257.2,y:321.8},{x:257.0,y:314.5}], totalLength: 0.7, segments: [] },
+  { id: 'JC035', type: '角撑', path: [{x:234.0,y:313.5},{x:234.2,y:320.9}], totalLength: 0.7, segments: [] },
+  { id: 'JC036', type: '角撑', path: [{x:240.5,y:307.5},{x:248.6,y:307.3}], totalLength: 0.7, segments: [] },
+  { id: 'JC037', type: '角撑', path: [{x:1288.8,y:343.7},{x:1218.5,y:270.4}], totalLength: 9.3, segments: [] },
+  { id: 'JC038', type: '角撑', path: [{x:1259.9,y:332.6},{x:1207.2,y:277.6}], totalLength: 6.9, segments: [] },
+  { id: 'JC039', type: '角撑', path: [{x:586.5,y:301.1},{x:580.5,y:306.9}], totalLength: 0.8, segments: [] },
+  { id: 'JC040', type: '角撑', path: [{x:206.2,y:289.8},{x:234.0,y:313.5}], totalLength: 3.3, segments: [] },
+  { id: 'JC041', type: '角撑', path: [{x:198.0,y:290.0},{x:174.2,y:312.4}], totalLength: 3.0, segments: [] },
+  { id: 'JC042', type: '角撑', path: [{x:564.1,y:295.4},{x:567.5,y:304.8}], totalLength: 0.9, segments: [] },
+  { id: 'JC043', type: '角撑', path: [{x:738.6,y:290.5},{x:586.5,y:301.1}], totalLength: 13.9, segments: [] },
+  { id: 'JC044', type: '角撑', path: [{x:212.6,y:283.7},{x:240.5,y:307.5}], totalLength: 3.3, segments: [] },
+  { id: 'JC045', type: '角撑', path: [{x:738.6,y:290.5},{x:743.6,y:295.6}], totalLength: 0.7, segments: [] },
+  { id: 'JC046', type: '角撑', path: [{x:756.9,y:295.2},{x:762.8,y:289.7}], totalLength: 0.7, segments: [] },
+  { id: 'JC047', type: '角撑', path: [{x:198.0,y:290.0},{x:206.2,y:289.8}], totalLength: 0.7, segments: [] },
+  { id: 'JC048', type: '角撑', path: [{x:593.1,y:286.9},{x:594.8,y:290.6}], totalLength: 0.4, segments: [] },
+  { id: 'JC049', type: '角撑', path: [{x:735.1,y:280.9},{x:594.8,y:290.6}], totalLength: 12.8, segments: [] },
+  { id: 'JC050', type: '角撑', path: [{x:257.0,y:314.5},{x:324.1,y:251.4}], totalLength: 8.4, segments: [] },
+  { id: 'JC051', type: '角撑', path: [{x:212.6,y:283.7},{x:212.5,y:276.4}], totalLength: 0.7, segments: [] },
+  { id: 'JC052', type: '角撑', path: [{x:248.6,y:307.3},{x:307.6,y:251.8}], totalLength: 7.4, segments: [] },
+  { id: 'JC053', type: '角撑', path: [{x:737.5,y:275.9},{x:735.1,y:280.9}], totalLength: 0.5, segments: [] },
+  { id: 'JC054', type: '角撑', path: [{x:768.8,y:279.9},{x:766.7,y:275.5}], totalLength: 0.4, segments: [] },
+  { id: 'JC055', type: '角撑', path: [{x:565.6,y:278.1},{x:569.9,y:276.6}], totalLength: 0.4, segments: [] },
+  { id: 'JC056', type: '角撑', path: [{x:1198.8,y:276.6},{x:1207.2,y:277.6}], totalLength: 0.8, segments: [] },
+  { id: 'JC057', type: '角撑', path: [{x:219.8,y:254.4},{x:173.9,y:297.6}], totalLength: 5.7, segments: [] },
+  { id: 'JC058', type: '角撑', path: [{x:583.5,y:273.0},{x:586.7,y:274.5}], totalLength: 0.3, segments: [] },
+  { id: 'JC059', type: '角撑', path: [{x:515.6,y:245.7},{x:564.1,y:295.4}], totalLength: 6.3, segments: [] },
+  { id: 'JC060', type: '角撑', path: [{x:1219.3,y:263.5},{x:1218.5,y:270.4}], totalLength: 0.6, segments: [] },
+  { id: 'JC061', type: '角撑', path: [{x:1192.6,y:270.2},{x:1193.4,y:263.3}], totalLength: 0.6, segments: [] },
+  { id: 'JC062', type: '角撑', path: [{x:236.3,y:253.9},{x:212.5,y:276.4}], totalLength: 3.0, segments: [] },
+  { id: 'JC063', type: '角撑', path: [{x:533.5,y:245.2},{x:565.6,y:278.1}], totalLength: 4.2, segments: [] },
+  { id: 'JC064', type: '角撑', path: [{x:569.9,y:276.6},{x:572.8,y:244.0}], totalLength: 3.0, segments: [] },
+  { id: 'JC065', type: '角撑', path: [{x:746.7,y:259.7},{x:743.2,y:260.6}], totalLength: 0.3, segments: [] },
+  { id: 'JC066', type: '角撑', path: [{x:1261.3,y:243.0},{x:1291.4,y:274.3}], totalLength: 4.0, segments: [] },
+  { id: 'JC067', type: '角撑', path: [{x:586.7,y:274.5},{x:616.4,y:242.7}], totalLength: 4.0, segments: [] },
+  { id: 'JC068', type: '角撑', path: [{x:583.5,y:273.0},{x:586.0,y:243.6}], totalLength: 2.7, segments: [] },
+  { id: 'JC069', type: '角撑', path: [{x:763.0,y:258.8},{x:760.1,y:257.6}], totalLength: 0.3, segments: [] },
+  { id: 'JC070', type: '角撑', path: [{x:1204.7,y:256.0},{x:1213.1,y:257.0}], totalLength: 0.8, segments: [] },
+  { id: 'JC071', type: '角撑', path: [{x:593.1,y:286.9},{x:652.0,y:224.0}], totalLength: 7.9, segments: [] },
+  { id: 'JC072', type: '角撑', path: [{x:1219.3,y:263.5},{x:1252.9,y:242.0}], totalLength: 3.6, segments: [] },
+  { id: 'JC073', type: '角撑', path: [{x:1213.1,y:257.0},{x:1246.7,y:235.6}], totalLength: 3.6, segments: [] },
+  { id: 'JC074', type: '角撑', path: [{x:1193.4,y:263.3},{x:1159.4,y:227.8}], totalLength: 4.5, segments: [] },
+  { id: 'JC075', type: '角撑', path: [{x:1252.9,y:242.0},{x:1261.3,y:243.0}], totalLength: 0.8, segments: [] },
+  { id: 'JC076', type: '角撑', path: [{x:692.4,y:206.7},{x:737.5,y:275.9}], totalLength: 7.5, segments: [] },
+  { id: 'JC077', type: '角撑', path: [{x:766.7,y:275.5},{x:827.4,y:197.5}], totalLength: 9.0, segments: [] },
+  { id: 'JC078', type: '角撑', path: [{x:1246.7,y:235.6},{x:1247.5,y:228.6}], totalLength: 0.6, segments: [] },
+  { id: 'JC079', type: '角撑', path: [{x:705.4,y:202.6},{x:743.2,y:260.6}], totalLength: 6.3, segments: [] },
+  { id: 'JC080', type: '角撑', path: [{x:752.1,y:197.2},{x:746.7,y:259.7}], totalLength: 5.7, segments: [] },
+  { id: 'JC081', type: '角撑', path: [{x:763.0,y:258.8},{x:810.8,y:197.4}], totalLength: 7.1, segments: [] },
+  { id: 'JC082', type: '角撑', path: [{x:1237.3,y:199.1},{x:1292.1,y:256.0}], totalLength: 7.2, segments: [] },
+  { id: 'JC083', type: '角撑', path: [{x:765.4,y:197.3},{x:760.1,y:257.6}], totalLength: 5.5, segments: [] },
+  { id: 'JC084', type: '角撑', path: [{x:1204.7,y:256.0},{x:1149.7,y:198.7}], totalLength: 7.2, segments: [] },
+  { id: 'JC085', type: '角撑', path: [{x:1219.0,y:199.0},{x:1247.5,y:228.6}], totalLength: 3.7, segments: [] },
+];
+// Total: 2 crown + 145 struts + 85 corners = 232
+
+// ---- Real data: Slabs (盖板 from HATCH) ----
+const slabs = [
+  { id: 'GB1', type: '盖板', polygon: [{x:32.1,y:803.7}, {x:1024.4,y:748.4}, {x:1283.2,y:494.8}, {x:1273.8,y:744.1}], area: 297.4, status: 'pending', regions: [] },
+  { id: 'GB2', type: '盖板', polygon: [{x:32.1,y:803.7}, {x:1045.1,y:198.3}, {x:1294.2,y:199.3}, {x:1284.9,y:448.2}], area: 1910.5, status: 'pending', regions: [] },
+];
+// Total: 2 slabs
+
+// ---- Real data: Box Culvert Outline (非结构构件) ----
+const boxCulverts = [
+  { id: 'XH1', path: [{x:54.9,y:681.8}, {x:114.5,y:624.2}, {x:295.9,y:456.3}, {x:411.2,y:350.2}, {x:552.4,y:217.0}, {x:755.7,y:130.0}, {x:948.1,y:129.0}, {x:1345.1,y:128.7}] },
+  { id: 'XH2', path: [{x:54.9,y:726.9}, {x:143.7,y:641.0}, {x:321.1,y:477.1}, {x:427.0,y:379.0}, {x:576.2,y:239.4}, {x:715.7,y:168.1}, {x:770.0,y:161.8}, {x:939.0,y:160.8}, {x:1326.1,y:159.8}, {x:1345.1,y:159.8}] },
+];
+
+// ---- Real data: Slope/Auxiliary Lines ----
+const slopeLines = [
+  { id: 'FP1', path: [{x:469.6,y:758.0}, {x:172.0,y:763.2}] },
+  { id: 'FP2', path: [{x:172.0,y:763.2}, {x:169.0,y:586.7}] },
+  { id: 'FP3', path: [{x:178.6,y:686.1}, {x:176.9,y:586.6}] },
+  { id: 'FP4', path: [{x:463.6,y:760.5}, {x:168.7,y:765.6}, {x:165.8,y:593.5}] },
+  { id: 'FP5', path: [{x:165.7,y:586.8}, {x:178.8,y:586.6}] },
+  { id: 'FP6', path: [{x:183.5,y:686.0}, {x:167.4,y:686.3}] },
+  { id: 'FP7', path: [{x:172.3,y:586.7}, {x:166.5,y:249.4}] },
+  { id: 'FP8', path: [{x:463.6,y:758.1}, {x:463.4,y:751.0}, {x:270.7,y:754.3}, {x:266.1,y:756.0}, {x:177.4,y:757.6}, {x:176.2,y:686.1}] },
+  { id: 'FP9', path: [{x:166.5,y:249.4}, {x:616.6,y:236.2}, {x:629.3,y:229.3}, {x:726.9,y:190.5}, {x:1287.3,y:192.7}] },
+  { id: 'FP10', path: [{x:463.7,y:764.7}, {x:1280.2,y:750.6}, {x:1301.1,y:192.7}] },
+  { id: 'FP11', path: [{x:463.6,y:758.1}, {x:463.8,y:771.3}] },
+];
+
+function generatePerimeterPath(points, startIdx, endIdx) {
+  const result = [];
+  for (let i = startIdx; i <= endIdx && i < points.length; i++) result.push(points[i]);
+  return result;
+}
+function calcPathLength(points, startIdx, endIdx) {
+  let len = 0;
+  for (let i = startIdx; i < endIdx && i < points.length; i++) {
+    const a = points[i], b = points[Math.min(i+1, points.length-1)];
+    len += Math.sqrt((b.x-a.x)**2 + (b.y-a.y)**2);
+  }
+  return Math.round(len);
+}
+
+
+
+
+
+
+
+
+
+
+
+// ViewBox is declared later in the file
+
+
+// ---- Daily data ----
+const dailyData = [
+  { date: '07-05', done: 3, planned: 5 },
+  { date: '07-06', done: 5, planned: 5 },
+  { date: '07-07', done: 2, planned: 4 },
+  { date: '07-08', done: 6, planned: 5 },
+  { date: '07-09', done: 4, planned: 5 },
+  { date: '07-10', done: 7, planned: 6 },
+  { date: '07-11', done: 3, planned: 6 }
+];
+
+// ============================================================
+// RENDER
+// ============================================================
+
+const svg = document.getElementById('planSvg');
+const planContainer = document.getElementById('planContainer');
+let currentTarget = null;
+let editMode = null;
+let editingTarget = null;
+let editingBeamStart = null;
+let slabEditPoints = [];
+let undoStack = [];
+
+function screenToSvg(clientX, clientY) {
+  const rect = planContainer.getBoundingClientRect();
+  const x = (clientX - rect.left) / rect.width * vbW + vbX;
+  const y = (clientY - rect.top) / rect.height * vbH + vbY;
+  return { x: Math.round(x), y: Math.round(y) };
+}
+
+function init() {
+  renderOutline();
+  // Create drawPreview layer (persistent across refresh)
+  const previewLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  previewLayer.setAttribute('id', 'drawPreview');
+  svg.appendChild(previewLayer);
+  renderPiles();
+  renderBeams();
+  renderSlabs();
+  updateStats();
+  renderPieChart();
+  renderBarChart();
+  renderDailyBars();
+  renderWeeklyCompare();
+  renderDetailTable();
+  setupZoom();
+  setupEditingEvents();
+}
+
+// ---- Render 基坑轮廓 ----
+function renderOutline() {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'outlineGroup');
+
+  // 基坑外轮廓（使用冠梁GL1的path绘制虚线轮廓）
+  const crownBeam = beams.find(b => b.id === 'GL1');
+  if (crownBeam && crownBeam.path.length > 1) {
+    const pts = crownBeam.path.map(p => p.x + ',' + p.y).join(' ');
+    const outline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    outline.setAttribute('points', pts);
+    outline.setAttribute('fill', 'none');
+    outline.setAttribute('stroke', '#334155');
+    outline.setAttribute('stroke-width', '2');
+    outline.setAttribute('stroke-dasharray', '12,6');
+    g.appendChild(outline);
+  }
+
+  // 基坑标签
+  const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  label.setAttribute('x', vbW / 2);
+  label.setAttribute('y', 30);
+  label.setAttribute('text-anchor', 'middle');
+  label.setAttribute('fill', '#475569');
+  label.setAttribute('font-size', '12');
+  label.textContent = '基坑支护范围';
+  g.appendChild(label);
+
+  // 方向标识 N
+  const north = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  const nLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  nLine.setAttribute('x1', vbW - 30); nLine.setAttribute('y1', 70); nLine.setAttribute('x2', vbW - 30); nLine.setAttribute('y2', 40);
+  nLine.setAttribute('stroke', '#64748b'); nLine.setAttribute('stroke-width', '1.5');
+  const nText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  nText.setAttribute('x', vbW - 30); nText.setAttribute('y', '35');
+  nText.setAttribute('text-anchor', 'middle');
+  nText.setAttribute('fill', '#64748b');
+  nText.setAttribute('font-size', '11');
+  nText.textContent = 'N';
+  north.appendChild(nLine); north.appendChild(nText);
+  g.appendChild(north);
+
+  svg.appendChild(g);
+}
+
+// ---- Render Piles ----
+function renderPiles() {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'pilesGroup');
+
+  piles.forEach(p => {
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', p.x);
+    circle.setAttribute('cy', p.y);
+    circle.setAttribute('r', p.r);
+    circle.setAttribute('fill', STATUS_COLORS[p.status]);
+    circle.setAttribute('stroke', TYPES[p.type].color);
+    circle.setAttribute('stroke-width', '1.5');
+    circle.setAttribute('class', 'pile-circle');
+    circle.setAttribute('data-id', p.id);
+    circle.setAttribute('opacity', p.status === 'pending' ? '0.35' : '0.85');
+    circle.addEventListener('click', (e) => {
+      if (editMode) return;
+      e.stopPropagation();
+      showPopup(e, p);
+    });
+    circle.addEventListener('mouseenter', (e) => {
+      if (!editMode) showSvgTooltip(e, { type: 'pile', ...p });
+    });
+    circle.addEventListener('mouseleave', () => {
+      hideSvgTooltip();
+    });
+    g.appendChild(circle);
+
+    // Column pile cross
+    if (p.type === '立柱桩') {
+      const cross = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      cross.setAttribute('stroke', '#fff');
+      cross.setAttribute('stroke-width', '1');
+      cross.setAttribute('opacity', '0.6');
+      const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      l1.setAttribute('x1', p.x-5); l1.setAttribute('y1', p.y); l1.setAttribute('x2', p.x+5); l1.setAttribute('y2', p.y);
+      const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      l2.setAttribute('x1', p.x); l2.setAttribute('y1', p.y-5); l2.setAttribute('x2', p.x); l2.setAttribute('y2', p.y+5);
+      cross.appendChild(l1); cross.appendChild(l2);
+      g.appendChild(cross);
+    }
+  });
+
+  svg.appendChild(g);
+}
+
+// ---- Render Beams ----
+function renderBeams() {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'beamsGroup');
+
+  beams.forEach(beam => {
+    if (beam.path.length < 2) return;
+    const pts = beam.path.map(p => `${p.x},${p.y}`).join(' ');
+
+    // Determine colors: completed segments use entity color, pending use light gray
+    const typeColor = TYPES[beam.type] ? TYPES[beam.type].color : '#60a5fa';
+
+    // Background line (full length, light gray for pending status)
+    const bgLine = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    bgLine.setAttribute('points', pts);
+    bgLine.setAttribute('fill', 'none');
+    if (beam.type.includes('冠梁')) {
+      bgLine.setAttribute('stroke', 'rgba(255,216,53,0.18)');
+      bgLine.setAttribute('stroke-width', '12');
+    } else if (beam.type.includes('角撑')) {
+      bgLine.setAttribute('stroke', 'rgba(150,160,180,0.06)');
+      bgLine.setAttribute('stroke-width', '6');
+    } else {
+      bgLine.setAttribute('stroke', 'rgba(150,160,180,0.06)');
+      bgLine.setAttribute('stroke-width', '7');
+    }
+    bgLine.setAttribute('stroke-linecap', 'round');
+    bgLine.setAttribute('pointer-events', 'none');
+    g.appendChild(bgLine);
+
+    // If no segments defined (all pending), draw as entity color with low opacity
+    if (beam.segments.length === 0) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      line.setAttribute('points', pts);
+      line.setAttribute('fill', 'none');
+      // Crown beams: always visible with entity color (even when pending)
+      if (beam.type.includes('冠梁')) {
+        line.setAttribute('stroke', typeColor);
+        line.setAttribute('stroke-width', '6');
+        line.setAttribute('opacity', '0.6');
+      } else if (beam.type.includes('角撑')) {
+        line.setAttribute('stroke', 'rgba(140,155,175,0.18)');
+        line.setAttribute('stroke-width', '3');
+      } else {
+        line.setAttribute('stroke', 'rgba(140,155,175,0.18)');
+        line.setAttribute('stroke-width', '4');
+      }
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('class', 'beam-line-drawn');
+      line.setAttribute('data-id', beam.id);
+      line.addEventListener('click', (e) => {
+        if (editMode) return;
+        e.stopPropagation();
+        showBeamPopup(e, beam, null);
+      });
+      line.addEventListener('mouseenter', (e) => {
+        if (!editMode) showSvgTooltip(e, { type: 'beam', beam, seg: null });
+      });
+      line.addEventListener('mouseleave', () => {
+        hideSvgTooltip();
+      });
+      g.appendChild(line);
+    }
+
+    // Status segments (when defined)
+    beam.segments.forEach(seg => {
+      if (seg.end <= seg.start) return;
+      const segPath = getSubPath(beam.path, seg.start, seg.end);
+      if (!segPath || segPath.length < 2) return;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      const segPts = segPath.map(p => `${p.x},${p.y}`).join(' ');
+      line.setAttribute('points', segPts);
+      line.setAttribute('fill', 'none');
+      // Completed = entity color, pending = light gray
+      line.setAttribute('stroke', seg.status === 'done' ? typeColor : STATUS_COLORS[seg.status]);
+      line.setAttribute('stroke-width', beam.type.includes('冠梁') ? '10' : (beam.type.includes('角撑') ? '5' : '6'));
+      line.setAttribute('stroke-linecap', 'round');
+      line.setAttribute('class', 'beam-line-drawn');
+      line.setAttribute('data-id', beam.id);
+      line.addEventListener('click', (e) => {
+        if (editMode) return;
+        e.stopPropagation();
+        showBeamPopup(e, beam, seg);
+      });
+      line.addEventListener('mouseenter', (e) => {
+        if (!editMode) showSvgTooltip(e, { type: 'beam', beam, seg });
+      });
+      line.addEventListener('mouseleave', () => {
+        hideSvgTooltip();
+      });
+      g.appendChild(line);
+    });
+
+    // ID label at midpoint (hidden by default, shown on hover)
+    if (beam.path.length >= 2) {
+      const mid = beam.path[Math.floor(beam.path.length / 2)];
+      const idText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      idText.setAttribute('x', mid.x);
+      idText.setAttribute('y', mid.y - (beam.type.includes('冠梁') ? 8 : 6));
+      idText.setAttribute('text-anchor', 'middle');
+      idText.setAttribute('fill', '#fff');
+      idText.setAttribute('font-size', '9');
+      idText.setAttribute('opacity', '0');
+      idText.setAttribute('pointer-events', 'none');
+      idText.classList.add('beam-id-label');
+      idText.textContent = beam.id;
+      g.appendChild(idText);
+      // Show label on hover over beam group
+      g.addEventListener('mouseenter', () => { idText.setAttribute('opacity', '0.9'); });
+      g.addEventListener('mouseleave', () => { idText.setAttribute('opacity', '0'); });
+    }
+  });
+
+  svg.appendChild(g);
+}
+
+function getSubPath(path, startFrac, endFrac) {
+  const totalLen = pathLength(path);
+  if (totalLen === 0) return path;
+  const startDist = totalLen * (startFrac / 100);
+  const endDist = totalLen * (endFrac / 100);
+  return interpolatePath(path, startDist, endDist);
+}
+
+function pathLength(path) {
+  let len = 0;
+  for (let i = 1; i < path.length; i++) {
+    len += Math.sqrt((path[i].x - path[i-1].x)**2 + (path[i].y - path[i-1].y)**2);
+  }
+  return len;
+}
+
+function interpolatePath(path, startDist, endDist) {
+  const result = [{ x: path[0].x, y: path[0].y }];
+  let accumulated = 0;
+  for (let i = 1; i < path.length; i++) {
+    const dx = path[i].x - path[i-1].x;
+    const dy = path[i].y - path[i-1].y;
+    const segLen = Math.sqrt(dx*dx + dy*dy);
+    if (accumulated + segLen >= startDist && accumulated < endDist) {
+      if (accumulated < startDist) {
+        const t = (startDist - accumulated) / segLen;
+        result.push({ x: path[i-1].x + dx*t, y: path[i-1].y + dy*t });
+      }
+      if (accumulated + segLen <= endDist) {
+        result.push({ x: path[i].x, y: path[i].y });
+      } else {
+        const t = (endDist - accumulated) / segLen;
+        result.push({ x: path[i-1].x + dx*t, y: path[i-1].y + dy*t });
+      }
+    }
+    accumulated += segLen;
+  }
+  return result;
+}
+
+// ---- Render Slabs ----
+function renderSlabs() {
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'slabsGroup');
+
+  slabs.forEach(slab => {
+    // Background polygon (full slab outline)
+    const pts = slab.polygon.map(p => `${p.x},${p.y}`).join(' ');
+    const bgPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    bgPoly.setAttribute('points', pts);
+    bgPoly.setAttribute('fill', STATUS_COLORS[slab.status]);
+    bgPoly.setAttribute('stroke', TYPES[slab.type].color);
+    bgPoly.setAttribute('stroke-width', '1.5');
+    bgPoly.setAttribute('class', 'slab-poly-drawn');
+    bgPoly.setAttribute('data-id', slab.id);
+    bgPoly.setAttribute('opacity', '0.2');
+    bgPoly.addEventListener('click', (e) => {
+      if (editMode) return;
+      e.stopPropagation();
+      showSlabPopup(e, slab);
+    });
+    bgPoly.addEventListener('mouseenter', (e) => {
+      if (!editMode) showSvgTooltip(e, { type: 'slab', slab });
+    });
+    bgPoly.addEventListener('mouseleave', () => {
+      hideSvgTooltip();
+    });
+    g.appendChild(bgPoly);
+
+    // Render sub-regions (if any)
+    if (slab.regions && slab.regions.length > 0) {
+      slab.regions.forEach((region, rIdx) => {
+        const rPts = region.polygon.map(p => `${p.x},${p.y}`).join(' ');
+        const rPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        rPoly.setAttribute('points', rPts);
+        rPoly.setAttribute('fill', STATUS_COLORS[region.status]);
+        rPoly.setAttribute('stroke', '#fff');
+        rPoly.setAttribute('stroke-width', '1');
+        rPoly.setAttribute('class', 'slab-region-drawn');
+        rPoly.setAttribute('data-id', slab.id + '-r' + rIdx);
+        rPoly.setAttribute('opacity', '0.5');
+        rPoly.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showSlabRegionPopup(e, slab, region);
+        });
+        rPoly.addEventListener('mouseenter', (e) => {
+          if (!editMode) showSvgTooltip(e, { type: 'slabRegion', slab, region });
+        });
+        rPoly.addEventListener('mouseleave', () => {
+          hideSvgTooltip();
+        });
+        g.appendChild(rPoly);
+      });
+    }
+
+    // Area label + ID label
+    const centroid = polygonCentroid(slab.polygon);
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', centroid.x);
+    text.setAttribute('y', centroid.y);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('fill', '#fff');
+    text.setAttribute('font-size', '10');
+    text.textContent = `${slab.area}m\u00B2`;
+    g.appendChild(text);
+
+    const idText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    idText.setAttribute('x', centroid.x);
+    idText.setAttribute('y', centroid.y + 13);
+    idText.setAttribute('text-anchor', 'middle');
+    idText.setAttribute('fill', '#fff');
+    idText.setAttribute('font-size', '9');
+    idText.setAttribute('opacity', '0.7');
+    idText.setAttribute('pointer-events', 'none');
+    idText.textContent = slab.id;
+    g.appendChild(idText);
+  });
+
+  svg.appendChild(g);
+}
+
+function polygonCentroid(pts) {
+  const n = pts.length;
+  const cx = pts.reduce((s, p) => s + p.x, 0) / n;
+  const cy = pts.reduce((s, p) => s + p.y, 0) / n;
+  return { x: cx, y: cy };
+}
+
+// ---- Status Popup ----
+function showPopup(e, pile) {
+  e.stopPropagation();
+  currentTarget = pile;
+  const popup = document.getElementById('statusPopup');
+  document.getElementById('popupTitle').textContent = `${pile.id} (${pile.type})`;
+  popup.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.status === pile.status);
+  });
+  const info = document.getElementById('popupInfo');
+  info.style.display = 'block';
+  info.innerHTML = `
+    <div class="popup-info-row"><span class="popup-info-label">ID:</span><span class="popup-info-value">${pile.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${pile.type}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">当前状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[pile.status]}">${STATUS_LABELS[pile.status]}</span></div>
+  `;
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
+  positionPopup(e, popup);
+  popup.classList.add('active');
+}
+
+function showBeamPopup(e, beam, seg) {
+  e.stopPropagation();
+  currentTarget = { type: 'beamSeg', beam, seg };
+  const popup = document.getElementById('statusPopup');
+  const segLen = seg ? Math.round(beam.totalLength * (seg.end - seg.start) / 100) : beam.totalLength;
+  document.getElementById('popupTitle').textContent = seg ? `${beam.id} (${beam.type}) 段进度` : `${beam.id} (${beam.type}) 整体进度`;
+  popup.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', seg ? opt.dataset.status === seg.status : opt.dataset.status === 'pending');
+  });
+  const info = document.getElementById('popupInfo');
+  info.style.display = 'block';
+  info.innerHTML = seg ? `
+    <div class="popup-info-row"><span class="popup-info-label">梁ID:</span><span class="popup-info-value">${beam.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">总长度:</span><span class="popup-info-value">${beam.totalLength}m</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">段范围:</span><span class="popup-info-value">${seg.start}% - ${seg.end}%</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">段长度:</span><span class="popup-info-value">${segLen}m</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">段状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[seg.status]}">${STATUS_LABELS[seg.status]}</span></div>
+  ` : `
+    <div class="popup-info-row"><span class="popup-info-label">梁ID:</span><span class="popup-info-value">${beam.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${beam.type}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">总长度:</span><span class="popup-info-value">${beam.totalLength}m</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS.pending}">${STATUS_LABELS.pending}</span></div>
+  `;
+  document.getElementById('popupDeleteSegBtn').style.display = 'block';
+  positionPopup(e, popup);
+  popup.classList.add('active');
+}
+
+// Popup for beam segments created in edit mode (reuses same popup)
+function showBeamSegmentPopup(e, beam, seg) {
+  showBeamPopup(e, beam, seg);
+}
+
+function showSlabPopup(e, slab) {
+  e.stopPropagation();
+  // Show overall slab info in select mode
+  currentTarget = { type: 'slab', slab };
+  const popup = document.getElementById('statusPopup');
+  document.getElementById('popupTitle').textContent = `${slab.id} (${slab.type})`;
+  popup.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.status === slab.status);
+  });
+  const info = document.getElementById('popupInfo');
+  info.style.display = 'block';
+  info.innerHTML = `
+    <div class="popup-info-row"><span class="popup-info-label">ID:</span><span class="popup-info-value">${slab.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">面积:</span><span class="popup-info-value">${slab.area}m\u00B2</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">整体状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[slab.status]}">${STATUS_LABELS[slab.status]}</span></div>
+  `;
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
+  positionPopup(e, popup);
+  popup.classList.add('active');
+}
+
+function showSlabRegionPopup(e, slab, region) {
+  e.stopPropagation();
+  currentTarget = { type: 'slabRegion', slab, region };
+  const popup = document.getElementById('statusPopup');
+  document.getElementById('popupTitle').textContent = `${slab.id} (${slab.type}) 子区域`;
+  popup.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.status === region.status);
+  });
+  const info = document.getElementById('popupInfo');
+  info.style.display = 'block';
+  info.innerHTML = `
+    <div class="popup-info-row"><span class="popup-info-label">板ID:</span><span class="popup-info-value">${slab.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">子区域状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[region.status]}">${STATUS_LABELS[region.status]}</span></div>
+  `;
+  document.getElementById('popupDeleteSegBtn').style.display = 'block';
+  positionPopup(e, popup);
+  popup.classList.add('active');
+}
+
+function positionPopup(e, popup) {
+  popup.style.left = e.clientX + 10 + 'px';
+  popup.style.top = e.clientY + 10 + 'px';
+}
+
+function setStatus(status) {
+  if (!currentTarget) return;
+  if (currentTarget.type === 'beamSeg') {
+    const oldStatus = currentTarget.seg.status;
+    currentTarget.seg.status = status;
+    undoStack.push({ action: 'changeSegStatus', beamId: currentTarget.beam.id, seg: currentTarget.seg, oldStatus });
+  } else if (currentTarget.type === 'slabRegion') {
+    const slab = currentTarget.slab;
+    const oldStatus = currentTarget.region.status;
+    currentTarget.region.status = status;
+    const idx = slab.regions.indexOf(currentTarget.region);
+    undoStack.push({ action: 'changeRegionStatus', slabId: slab.id, regionIdx: idx, oldStatus });
+  } else if (currentTarget.type === 'slab') {
+    currentTarget.slab.status = status;
+  } else {
+    currentTarget.status = status;
+  }
+  document.getElementById('statusPopup').classList.remove('active');
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
+  currentTarget = null;
+  refresh();
+}
+
+// Close popup on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.status-popup') && !e.target.closest('.pile-circle') && !e.target.closest('.beam-line-drawn') && !e.target.closest('.slab-poly-drawn') && !e.target.closest('.slab-region-drawn')) {
+    document.getElementById('statusPopup').classList.remove('active');
+    document.getElementById('popupDeleteSegBtn').style.display = 'none';
+    currentTarget = null;
+  }
+});
+
+// ============================================================
+// STATS & CHARTS
+// ============================================================
+
+function calcStats() {
+  const stats = {};
+  Object.keys(TYPES).forEach(type => {
+    if (TYPES[type].category === 'pile') {
+      const items = piles.filter(p => p.type === type);
+      stats[type] = {
+        total: items.length,
+        done: items.filter(p => p.status === 'done').length,
+        doing: items.filter(p => p.status === 'doing').length,
+        pending: items.filter(p => p.status === 'pending').length,
+        unit: TYPES[type].unit
+      };
+    } else if (TYPES[type].category === 'beam') {
+      const items = beams.filter(b => b.type === type);
+      let totalLen = 0, doneLen = 0, doingLen = 0;
+      items.forEach(b => {
+        totalLen += b.totalLength;
+        b.segments.forEach(s => {
+          const segLen = b.totalLength * (s.end - s.start) / 100;
+          if (s.status === 'done') doneLen += segLen;
+          else if (s.status === 'doing') doingLen += segLen;
+        });
+      });
+      stats[type] = { total: Math.round(totalLen), done: Math.round(doneLen), doing: Math.round(doingLen), pending: Math.round(totalLen - doneLen - doingLen), unit: TYPES[type].unit };
+    } else if (TYPES[type].category === 'slab') {
+      const items = slabs.filter(s => s.type === type);
+      const total = items.reduce((s, sl) => s + sl.area, 0);
+      const done = items.filter(s => s.status === 'done').reduce((s, sl) => s + sl.area, 0);
+      const doing = items.filter(s => s.status === 'doing').reduce((s, sl) => s + sl.area, 0);
+      stats[type] = { total, done, doing, pending: total - done - doing, unit: TYPES[type].unit };
+    }
+  });
+  return stats;
+}
+
+function updateStats() {
+  const stats = calcStats();
+  const all = Object.values(stats);
+  const totalAll = all.reduce((s, a) => s + a.total, 0);
+  const doneAll = all.reduce((s, a) => s + a.done, 0);
+  const doingAll = all.reduce((s, a) => s + a.doing, 0);
+  const pendingAll = all.reduce((s, a) => s + a.pending, 0);
+  const rate = totalAll > 0 ? Math.round(doneAll / totalAll * 100) : 0;
+
+  document.getElementById('bottomStats').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(59,130,246,0.15);color:var(--accent)">📋</div>
+      <div class="stat-info">
+        <div class="stat-value">${totalAll}</div>
+        <div class="stat-label">总数</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(0,200,83,0.15);color:var(--status-done)">✅</div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:var(--status-done)">${doneAll}</div>
+        <div class="stat-label">已完成</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(255,171,0,0.15);color:var(--status-doing)">🔧</div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:var(--status-doing)">${doingAll}</div>
+        <div class="stat-label">施工中</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(84,110,122,0.15);color:var(--status-pending)">⏳</div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:var(--status-pending)">${pendingAll}</div>
+        <div class="stat-label">未施工</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(59,130,246,0.15);color:var(--accent)">📊</div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:var(--accent)">${rate}%</div>
+        <div class="stat-label">完成率</div>
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon" style="background:rgba(0,200,83,0.15);color:var(--status-done)">📅</div>
+      <div class="stat-info">
+        <div class="stat-value" style="color:var(--status-done)">3</div>
+        <div class="stat-label">今日完成</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPieChart() {
+  const stats = calcStats();
+  const totalAll = Object.values(stats).reduce((s, a) => s + a.done, 0);
+  const colors = [];
+  const values = [];
+  const labels = [];
+  Object.keys(stats).forEach(type => {
+    if (stats[type].done > 0) {
+      colors.push(TYPES[type].color);
+      values.push(stats[type].done);
+      labels.push(type);
+    }
+  });
+
+  const total = values.reduce((s, v) => s + v, 0);
+  let gradient = 'conic-gradient(';
+  let cumulative = 0;
+  values.forEach((v, i) => {
+    const pct = total > 0 ? (v / total * 100) : 0;
+    gradient += `${colors[i]} ${cumulative}% ${cumulative + pct}%`;
+    cumulative += pct;
+    if (i < values.length - 1) gradient += ', ';
+  });
+  gradient += ')';
+
+  document.getElementById('pieChart').style.background = gradient;
+  document.getElementById('pieTotalRate').textContent = Math.round(total / Math.max(Object.values(stats).reduce((s,a) => s+a.total, 0), 1) * 100) + '%';
+
+  const legend = document.getElementById('pieLegend');
+  legend.innerHTML = labels.map((l, i) => `
+    <div class="legend-item">
+      <div class="legend-dot" style="background:${colors[i]}"></div>
+      <span class="legend-label">${l}</span>
+      <span class="legend-value">${values[i]}${TYPES[l].unit}</span>
+    </div>
+  `).join('');
+}
+
+function renderBarChart() {
+  const stats = calcStats();
+  const maxVal = Math.max(...Object.values(stats).map(s => s.total), 1);
+  const chart = document.getElementById('barChart');
+  chart.innerHTML = Object.keys(stats).map(type => {
+    const s = stats[type];
+    const rate = s.total > 0 ? Math.round(s.done / s.total * 100) : 0;
+    return `
+      <div class="bar-row">
+        <div class="bar-label" title="${type}">${type}</div>
+        <div class="bar-track">
+          <div class="bar-fill" style="width:${rate}%;background:${TYPES[type].color}"></div>
+        </div>
+        <div class="bar-value">${rate}%</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderDailyBars() {
+  const maxVal = Math.max(...dailyData.map(d => Math.max(d.done, d.planned)), 1);
+  const container = document.getElementById('dailyBars');
+  container.innerHTML = dailyData.map(d => `
+    <div class="daily-bar-group">
+      <div class="daily-bar daily-bar-plan" style="height:${d.planned/maxVal*100}%;position:absolute;bottom:${d.done/maxVal*100}%;width:100%">
+        <div class="daily-bar-tooltip">计划: ${d.planned}</div>
+      </div>
+      <div class="daily-bar daily-bar-actual" style="height:${d.done/maxVal*100}%">
+        <div class="daily-bar-tooltip">实际: ${d.done}</div>
+      </div>
+      <div class="daily-label">${d.date.slice(5)}</div>
+    </div>
+  `).join('');
+}
+
+function renderWeeklyCompare() {
+  const planned = dailyData.reduce((s, d) => s + d.planned, 0);
+  const actual = dailyData.reduce((s, d) => s + d.done, 0);
+  const maxVal = Math.max(planned, actual, 1);
+  const container = document.getElementById('weeklyCompare');
+  container.innerHTML = `
+    <div class="compare-row">
+      <div class="compare-label">计划</div>
+      <div class="compare-bars">
+        <div class="compare-bar compare-bar-plan" style="width:${planned/maxVal*100}%"></div>
+      </div>
+      <div class="compare-val">${planned}</div>
+    </div>
+    <div class="compare-row">
+      <div class="compare-label">实际</div>
+      <div class="compare-bars">
+        <div class="compare-bar compare-bar-actual" style="width:${actual/maxVal*100}%"></div>
+      </div>
+      <div class="compare-val">${actual}</div>
+    </div>
+    <div style="text-align:center;margin-top:8px;font-size:11px;color:${actual >= planned ? 'var(--status-done)' : 'var(--status-doing)'}">
+      ${actual >= planned ? '✅ 达标' : '⚠️ 滞后'} (${Math.round(actual/planned*100)}%)
+    </div>
+  `;
+}
+
+function renderDetailTable() {
+  const stats = calcStats();
+  const tbody = document.getElementById('detailTableBody');
+  tbody.innerHTML = Object.keys(stats).map(type => {
+    const s = stats[type];
+    const rate = s.total > 0 ? Math.round(s.done / s.total * 100) : 0;
+    return `
+      <tr>
+        <td><span style="color:${TYPES[type].color}">${TYPES[type].icon}</span> ${type}</td>
+        <td>${s.total}${s.unit}</td>
+        <td style="color:var(--status-done)">${s.done}</td>
+        <td style="color:var(--status-doing)">${s.doing}</td>
+        <td>
+          <span class="progress-mini"><span class="progress-mini-fill" style="width:${rate}%;background:${TYPES[type].color}"></span></span>
+          <span style="font-size:11px;margin-left:4px">${rate}%</span>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ============================================================
+// ZOOM & PAN (via viewBox)
+// ============================================================
+
+let vbX = 0, vbY = 0, vbW = 1400, vbH = 900;
+let isPanning = false, panStartX, panStartY, vbStartX, vbStartY;
+
+function setupZoom() {
+  const container = document.getElementById('planContainer');
+  updateViewBox();
+
+  container.addEventListener('mousedown', (e) => {
+    if (drawingMode) return;
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartY = e.clientY;
+    vbStartX = vbX;
+    vbStartY = vbY;
+  });
+  container.addEventListener('mousemove', (e) => {
+    if (!isPanning) return;
+    const rect = container.getBoundingClientRect();
+    const scaleX = vbW / rect.width;
+    const scaleY = vbH / rect.height;
+    vbX = vbStartX - (e.clientX - panStartX) * scaleX;
+    vbY = vbStartY - (e.clientY - panStartY) * scaleY;
+    updateViewBox();
+  });
+  container.addEventListener('mouseup', () => { isPanning = false; });
+  container.addEventListener('mouseleave', () => { isPanning = false; });
+  container.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width * vbW + vbX;
+    const my = (e.clientY - rect.top) / rect.height * vbH + vbY;
+    const factor = e.deltaY > 0 ? 1.2 : 0.8;
+    vbW = Math.min(1800, Math.max(100, vbW * factor));
+    vbH = Math.min(1200, Math.max(67, vbH * factor));
+    vbX = mx - (mx - vbX) * factor;
+    vbY = my - (my - vbY) * factor;
+    updateViewBox();
+  }, { passive: false });
+}
+
+function updateViewBox() {
+  svg.setAttribute('viewBox', `${vbX} ${vbY} ${vbW} ${vbH}`);
+}
+
+function zoomIn() {
+  const cx = vbX + vbW / 2, cy = vbY + vbH / 2;
+  vbW = Math.max(100, vbW * 0.8);
+  vbH = Math.max(67, vbH * 0.8);
+  vbX = cx - vbW / 2;
+  vbY = cy - vbH / 2;
+  updateViewBox();
+}
+function zoomOut() {
+  const cx = vbX + vbW / 2, cy = vbY + vbH / 2;
+  vbW = Math.min(1800, vbW * 1.2);
+  vbH = Math.min(1200, vbH * 1.2);
+  vbX = cx - vbW / 2;
+  vbY = cy - vbH / 2;
+  updateViewBox();
+}
+function resetView() { vbX = 0; vbY = 0; vbW = 1400; vbH = 900; updateViewBox(); }
+
+// ============================================================
+// FILTER
+// ============================================================
+
+function applyFilter() {
+  const catFilter = document.getElementById('filterSelect').value;
+  const statusFilter = document.getElementById('statusFilter').value;
+
+  // Piles
+  piles.forEach(p => {
+    const el = svg.querySelector(`[data-id="${p.id}"]`);
+    if (!el) return;
+    let show = true;
+    if (catFilter !== 'all' && TYPES[p.type].category !== catFilter) show = false;
+    if (statusFilter !== 'all' && p.status !== statusFilter) show = false;
+    el.style.display = show ? '' : 'none';
+  });
+}
+
+// ============================================================
+// DATE / SNAPSHOT
+// ============================================================
+
+function goToday() {
+  document.getElementById('dateInput').value = '2026-07-11';
+  document.getElementById('snapshotBadge').textContent = '📷 今日快照';
+}
+
+// ============================================================
+// REFRESH ALL
+// ============================================================
+
+function refresh() {
+  // Preserve outline and drawPreview layers
+  const outlineGroup = document.getElementById('outlineGroup');
+  const drawPreview = document.getElementById('drawPreview');
+  svg.innerHTML = '';
+  if (outlineGroup) svg.appendChild(outlineGroup);
+  renderPiles();
+  renderBeams();
+  renderSlabs();
+  if (drawPreview) svg.appendChild(drawPreview);
+  updateStats();
+  renderPieChart();
+  renderBarChart();
+  renderDetailTable();
+  applyFilter();
+}
+
+// ============================================================
+// EDIT MODE (beam segment marking / slab sub-region marking)
+// ============================================================
+
+function enterSelectMode() {
+  editMode = null;
+  editingTarget = null;
+  editingBeamStart = null;
+  slabEditPoints = [];
+  clearPreview();
+  document.getElementById('modeIndicator').classList.remove('active');
+  document.querySelectorAll('#planToolbar .plan-tool-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('toolSelect').classList.add('active');
+  planContainer.style.cursor = 'grab';
+  // Remove editing highlights
+  clearEditingHighlights();
+}
+
+function enterEditMode(type) {
+  document.querySelectorAll('#planToolbar .plan-tool-btn').forEach(btn => btn.classList.remove('active'));
+  document.getElementById('toolSelect').classList.remove('active');
+
+  if (type === 'beam') {
+    editMode = 'beam';
+    editingTarget = null;
+    editingBeamStart = null;
+    document.getElementById('toolEditBeam').classList.add('active');
+    updateModeIndicator('标记梁段：点击一条梁进入编辑');
+  } else if (type === 'slab') {
+    editMode = 'slab';
+    editingTarget = null;
+    slabEditPoints = [];
+    document.getElementById('toolEditSlab').classList.add('active');
+    updateModeIndicator('标记板区：点击一块盖板进入编辑');
+  }
+
+  document.getElementById('modeIndicator').classList.add('active');
+  planContainer.style.cursor = 'crosshair';
+}
+
+function cancelEditing() {
+  enterSelectMode();
+  refresh();
+}
+
+function updateModeIndicator(text) {
+  document.getElementById('modeText').textContent = text;
+}
+
+function clearPreview() {
+  const g = document.getElementById('drawPreview');
+  if (g) g.innerHTML = '';
+}
+
+function clearEditingHighlights() {
+  document.querySelectorAll('.beam-editing-highlight').forEach(el => el.remove());
+  document.querySelectorAll('.slab-editing-highlight').forEach(el => el.remove());
+}
+
+// ---- Find nearest point on beam path ----
+function findNearestPercentOnPath(path, pt) {
+  let bestDist = Infinity, bestFrac = 0;
+  let accumulated = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (segLen < 0.01) continue;
+    // Project point onto segment
+    const t = Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.y - a.y) * dy) / (segLen * segLen)));
+    const px = a.x + dx * t, py = a.y + dy * t;
+    const dist = Math.sqrt((pt.x - px) ** 2 + (pt.y - py) ** 2);
+    const frac = (accumulated + t * segLen) / pathLength(path) * 100;
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestFrac = frac;
+    }
+    accumulated += segLen;
+  }
+  return { frac: bestFrac, dist: bestDist };
+}
+
+// ---- Find which beam was clicked (proximity test) ----
+function findBeamAtPoint(svgPt, threshold) {
+  threshold = threshold || 12; // pixels in SVG coords
+  let best = null, bestDist = Infinity;
+  beams.forEach(beam => {
+    const result = findNearestPercentOnPath(beam.path, svgPt);
+    if (result.dist < bestDist) {
+      bestDist = result.dist;
+      best = { beam, percent: result.frac, dist: result.dist };
+    }
+  });
+  if (best && best.dist <= threshold) return best;
+  return null;
+}
+
+// ---- Find which slab was clicked ----
+function findSlabAtPoint(svgPt) {
+  for (const slab of slabs) {
+    if (pointInPolygon(svgPt, slab.polygon)) return slab;
+  }
+  return null;
+}
+
+function pointInPolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    if (((yi > pt.y) !== (yj > pt.y)) && (pt.x < (xj - xi) * (pt.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// ---- Setup editing events ----
+function setupEditingEvents() {
+  const svgEl = document.getElementById('planSvg');
+
+  // Click on SVG for editing
+  svgEl.addEventListener('click', (e) => {
+    if (!editMode) return;
+    // Don't intercept clicks on pile circles or status popup
+    if (e.target.closest('.pile-circle') || e.target.closest('.status-popup')) return;
+
+    const pt = screenToSvg(e.clientX, e.clientY);
+
+    if (editMode === 'beam') {
+      handleBeamEditClick(pt, e);
+    } else if (editMode === 'slab') {
+      handleSlabEditClick(pt, e);
+    }
+  });
+
+  // Mouse move for preview
+  svgEl.addEventListener('mousemove', (e) => {
+    if (!editMode) return;
+    const pt = screenToSvg(e.clientX, e.clientY);
+
+    if (editMode === 'beam' && editingTarget && editingBeamStart !== null) {
+      // Preview beam segment
+      clearPreview();
+      const g = document.getElementById('drawPreview');
+      const startPct = editingBeamStart;
+      const endResult = findNearestPercentOnPath(editingTarget.path, pt);
+      const minPct = Math.min(startPct, endResult.frac);
+      const maxPct = Math.max(startPct, endResult.frac);
+      const segPath = getSubPath(editingTarget.path, minPct, maxPct);
+      if (segPath && segPath.length >= 2) {
+        const previewLine = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        const pts = segPath.map(p => `${p.x},${p.y}`).join(' ');
+        previewLine.setAttribute('points', pts);
+        previewLine.setAttribute('fill', 'none');
+        previewLine.setAttribute('stroke', '#60a5fa');
+        previewLine.setAttribute('stroke-width', editingTarget.type.includes('冠梁') ? '10' : '8');
+        previewLine.setAttribute('stroke-linecap', 'round');
+        previewLine.setAttribute('opacity', '0.6');
+        previewLine.setAttribute('stroke-dasharray', '6,4');
+        g.appendChild(previewLine);
+
+        // Show length preview
+        const segLen = Math.round(editingTarget.totalLength * (maxPct - minPct) / 100);
+        const midPath = segPath[Math.floor(segPath.length / 2)];
+        const lenText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        lenText.setAttribute('x', midPath.x);
+        lenText.setAttribute('y', midPath.y - 10);
+        lenText.setAttribute('text-anchor', 'middle');
+        lenText.setAttribute('fill', '#60a5fa');
+        lenText.setAttribute('font-size', '11');
+        lenText.setAttribute('pointer-events', 'none');
+        lenText.textContent = segLen + 'm (' + Math.round(minPct) + '%-' + Math.round(maxPct) + '%)';
+        g.appendChild(lenText);
+      }
+    } else if (editMode === 'slab' && editingTarget && slabEditPoints.length > 0) {
+      // Preview slab sub-region polygon
+      clearPreview();
+      const g = document.getElementById('drawPreview');
+      const allPts = [...slabEditPoints, pt];
+      const ptsStr = allPts.map(p => `${p.x},${p.y}`).join(' ');
+
+      const previewPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      previewPoly.setAttribute('points', ptsStr);
+      previewPoly.setAttribute('fill', '#60a5fa');
+      previewPoly.setAttribute('opacity', '0.2');
+      previewPoly.setAttribute('stroke', '#60a5fa');
+      previewPoly.setAttribute('stroke-width', '2');
+      previewPoly.setAttribute('stroke-dasharray', '4,3');
+      previewPoly.setAttribute('pointer-events', 'none');
+      g.appendChild(previewPoly);
+
+      // Vertex markers
+      slabEditPoints.forEach(p => {
+        const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        marker.setAttribute('cx', p.x);
+        marker.setAttribute('cy', p.y);
+        marker.setAttribute('r', '4');
+        marker.setAttribute('fill', '#60a5fa');
+        marker.setAttribute('opacity', '0.9');
+        marker.setAttribute('pointer-events', 'none');
+        g.appendChild(marker);
+      });
+    }
+  });
+
+  // Double click for slab region closing
+  svgEl.addEventListener('dblclick', (e) => {
+    if (editMode === 'slab' && editingTarget && slabEditPoints.length >= 3) {
+      e.preventDefault();
+      e.stopPropagation();
+      finishSlabRegion();
+    }
+  });
+
+  // Right click to cancel current edit or exit edit mode
+  planContainer.addEventListener('contextmenu', (e) => {
+    if (editMode) {
+      e.preventDefault();
+      if (editMode === 'beam' && editingBeamStart !== null) {
+        // Cancel current segment marking
+        editingBeamStart = null;
+        clearPreview();
+        updateModeIndicator('标记梁段：点击梁上的位置设置起点');
+      } else if (editMode === 'slab' && slabEditPoints.length > 0) {
+        // Cancel current sub-region drawing
+        slabEditPoints = [];
+        clearPreview();
+        updateModeIndicator('标记板区：在盖板内点击添加顶点（双击闭合）');
+      } else {
+        cancelEditing();
+      }
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      cancelEditing();
+    }
+    if (e.key === 'Enter' && editMode === 'slab' && editingTarget && slabEditPoints.length >= 3) {
+      finishSlabRegion();
+    }
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault();
+      undoLastEdit();
+    }
+  });
+}
+
+// ---- Handle beam edit click ----
+function handleBeamEditClick(pt, e) {
+  const hit = findBeamAtPoint(pt);
+  if (!hit) {
+    // Clicked outside beams - deselect current
+    if (editingTarget) {
+      editingTarget = null;
+      editingBeamStart = null;
+      clearPreview();
+      clearEditingHighlights();
+      updateModeIndicator('标记梁段：点击一条梁进入编辑');
+    }
+    return;
+  }
+
+  const beam = hit.beam;
+  const percent = hit.percent;
+
+  if (!editingTarget || editingTarget.id !== beam.id) {
+    // Selecting a new beam
+    editingTarget = beam;
+    editingBeamStart = null;
+    clearPreview();
+    clearEditingHighlights();
+    // Add editing highlight (thicker dashed outline)
+    highlightBeam(beam);
+    updateModeIndicator(`标记梁段：${beam.id} - 点击梁上的位置设置起点`);
+    return;
+  }
+
+  if (editingBeamStart === null) {
+    // Set start point
+    editingBeamStart = percent;
+    // Mark start point visually
+    clearPreview();
+    const g = document.getElementById('drawPreview');
+    const startPtOnPath = getPointAtPercent(beam.path, percent);
+    const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    marker.setAttribute('cx', startPtOnPath.x);
+    marker.setAttribute('cy', startPtOnPath.y);
+    marker.setAttribute('r', '5');
+    marker.setAttribute('fill', '#60a5fa');
+    marker.setAttribute('opacity', '0.9');
+    marker.setAttribute('pointer-events', 'none');
+    g.appendChild(marker);
+    updateModeIndicator(`标记梁段：${beam.id} - 起点已设(${Math.round(percent)}%)，点击终点位置`);
+  } else {
+    // Set end point - create segment
+    const startPct = Math.min(editingBeamStart, percent);
+    const endPct = Math.max(editingBeamStart, percent);
+    if (endPct - startPct < 1) {
+      // Too short, treat as new start
+      editingBeamStart = percent;
+      clearPreview();
+      const g = document.getElementById('drawPreview');
+      const startPtOnPath = getPointAtPercent(beam.path, percent);
+      const marker = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      marker.setAttribute('cx', startPtOnPath.x);
+      marker.setAttribute('cy', startPtOnPath.y);
+      marker.setAttribute('r', '5');
+      marker.setAttribute('fill', '#60a5fa');
+      marker.setAttribute('opacity', '0.9');
+      marker.setAttribute('pointer-events', 'none');
+      g.appendChild(marker);
+      return;
+    }
+
+    // Create new segment - show status popup
+    const newSeg = { start: Math.round(startPct), end: Math.round(endPct), status: 'doing' };
+    beam.segments.push(newSeg);
+    // Compact overlapping segments
+    compactBeamSegments(beam);
+
+    clearPreview();
+    editingBeamStart = null;
+    undoStack.push({ action: 'addSeg', beamId: beam.id });
+    refresh();
+    highlightBeam(beam);
+    updateModeIndicator(`标记梁段：${beam.id} - 段已添加，继续点击或退出`);
+
+    // Show popup for the new segment to set status
+    const midPercent = (newSeg.start + newSeg.end) / 2;
+    const midPt = getPointAtPercent(beam.path, midPercent);
+    const rect = planContainer.getBoundingClientRect();
+    const fakeEvent = {
+      clientX: rect.left + midPt.x / vbW * rect.width,
+      clientY: rect.top + midPt.y / vbH * rect.height,
+      stopPropagation: () => {}
+    };
+    showBeamSegmentPopup(fakeEvent, beam, newSeg);
+  }
+}
+
+// ---- Get a point at a given percentage along a path ----
+function getPointAtPercent(path, pct) {
+  const total = pathLength(path);
+  const targetDist = total * (pct / 100);
+  let accumulated = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const segLen = Math.sqrt(dx * dx + dy * dy);
+    if (accumulated + segLen >= targetDist && segLen > 0) {
+      const t = (targetDist - accumulated) / segLen;
+      return { x: a.x + dx * t, y: a.y + dy * t };
+    }
+    accumulated += segLen;
+  }
+  return path[path.length - 1];
+}
+
+// ---- Compact overlapping segments ----
+function compactBeamSegments(beam) {
+  // Sort segments by start
+  beam.segments.sort((a, b) => a.start - b.start);
+  // Merge overlapping segments with same status
+  const merged = [];
+  let i = 0;
+  while (i < beam.segments.length) {
+    let cur = { ...beam.segments[i] };
+    while (i + 1 < beam.segments.length && beam.segments[i + 1].start <= cur.end && beam.segments[i + 1].status === cur.status) {
+      cur.end = Math.max(cur.end, beam.segments[i + 1].end);
+      i++;
+    }
+    merged.push(cur);
+    i++;
+  }
+  beam.segments = merged;
+}
+
+// ---- Highlight beam in edit mode ----
+function highlightBeam(beam) {
+  clearEditingHighlights();
+  const g = document.getElementById('beamsGroup');
+  if (!g) return;
+  const hl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  const pts = beam.path.map(p => `${p.x},${p.y}`).join(' ');
+  hl.setAttribute('points', pts);
+  hl.setAttribute('fill', 'none');
+  hl.setAttribute('stroke', '#60a5fa');
+  hl.setAttribute('stroke-width', (beam.type.includes('冠梁') ? '8' : '6') + 4);
+  hl.setAttribute('opacity', '0.25');
+  hl.setAttribute('class', 'beam-editing-highlight');
+  hl.setAttribute('pointer-events', 'none');
+  g.appendChild(hl);
+}
+
+// ---- Handle slab edit click ----
+function handleSlabEditClick(pt, e) {
+  const hit = findSlabAtPoint(pt);
+  if (!hit) {
+    if (editingTarget) {
+      editingTarget = null;
+      slabEditPoints = [];
+      clearPreview();
+      clearEditingHighlights();
+      updateModeIndicator('标记板区：点击一块盖板进入编辑');
+    }
+    return;
+  }
+
+  const slab = hit;
+
+  if (!editingTarget || editingTarget.id !== slab.id) {
+    // Select a new slab
+    editingTarget = slab;
+    slabEditPoints = [];
+    clearPreview();
+    clearEditingHighlights();
+    highlightSlab(slab);
+    updateModeIndicator(`标记板区：${slab.id} - 在盖板内点击添加顶点（双击闭合）`);
+    return;
+  }
+
+  // Check that the point is inside the slab
+  if (!pointInPolygon(pt, slab.polygon)) {
+    return;
+  }
+
+  // Add vertex
+  slabEditPoints.push(pt);
+  const n = slabEditPoints.length;
+  if (n < 3) {
+    updateModeIndicator(`标记板区：${slab.id} - 已标记${n}个点，继续点击`);
+  } else {
+    updateModeIndicator(`标记板区：${slab.id} - 已标记${n}个点，双击或Enter闭合`);
+  }
+}
+
+// ---- Finish slab sub-region ----
+function finishSlabRegion() {
+  if (!editingTarget || slabEditPoints.length < 3) return;
+
+  const slab = editingTarget;
+  const newRegion = {
+    polygon: [...slabEditPoints],
+    status: 'doing'
+  };
+
+  if (!slab.regions) slab.regions = [];
+  slab.regions.push(newRegion);
+  undoStack.push({ action: 'addRegion', slabId: slab.id });
+
+  slabEditPoints = [];
+  clearPreview();
+  refresh();
+  highlightSlab(slab);
+  updateModeIndicator(`标记板区：${slab.id} - 区域已添加，继续标记或退出`);
+
+  // Show popup for the new region
+  const centroid = polygonCentroid(newRegion.polygon);
+  const rect = planContainer.getBoundingClientRect();
+  const fakeEvent = {
+    clientX: rect.left + centroid.x / vbW * rect.width,
+    clientY: rect.top + centroid.y / vbH * rect.height,
+    stopPropagation: () => {}
+  };
+  showSlabRegionPopup(fakeEvent, slab, newRegion);
+}
+
+// ---- Highlight slab in edit mode ----
+function highlightSlab(slab) {
+  clearEditingHighlights();
+  const g = document.getElementById('slabsGroup');
+  if (!g) return;
+  const pts = slab.polygon.map(p => `${p.x},${p.y}`).join(' ');
+  const hl = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  hl.setAttribute('points', pts);
+  hl.setAttribute('fill', 'none');
+  hl.setAttribute('stroke', '#60a5fa');
+  hl.setAttribute('stroke-width', '3');
+  hl.setAttribute('stroke-dasharray', '6,3');
+  hl.setAttribute('opacity', '0.6');
+  hl.setAttribute('class', 'slab-editing-highlight');
+  hl.setAttribute('pointer-events', 'none');
+  g.appendChild(hl);
+}
+
+// ---- Undo last edit action ----
+function undoLastEdit() {
+  if (undoStack.length === 0) return;
+  const action = undoStack.pop();
+  if (action.action === 'addSeg') {
+    const beam = beams.find(b => b.id === action.beamId);
+    if (beam && beam.segments.length > 0) {
+      beam.segments.pop();
+    }
+  } else if (action.action === 'removeSeg') {
+    const beam = beams.find(b => b.id === action.beamId);
+    if (beam) {
+      beam.segments.push(action.seg);
+    }
+  } else if (action.action === 'addRegion') {
+    const slab = slabs.find(s => s.id === action.slabId);
+    if (slab && slab.regions && slab.regions.length > 0) {
+      slab.regions.pop();
+    }
+  } else if (action.action === 'removeRegion') {
+    const slab = slabs.find(s => s.id === action.slabId);
+    if (slab && slab.regions) {
+      slab.regions.push(action.region);
+    }
+  } else if (action.action === 'changeSegStatus') {
+    const beam = beams.find(b => b.id === action.beamId);
+    if (beam) {
+      const seg = beam.segments.find(s => s.start === action.seg.start && s.end === action.seg.end);
+      if (seg) seg.status = action.oldStatus;
+    }
+  } else if (action.action === 'changeRegionStatus') {
+    const slab = slabs.find(s => s.id === action.slabId);
+    if (slab && slab.regions) {
+      const region = slab.regions[action.regionIdx];
+      if (region) region.status = action.oldStatus;
+    }
+  }
+  refresh();
+}
+
+// ---- Delete current segment/region ----
+function deleteSegment() {
+  if (!currentTarget) return;
+  if (currentTarget.type === 'beamSeg') {
+    const beam = currentTarget.beam;
+    const seg = currentTarget.seg;
+    const idx = beam.segments.indexOf(seg);
+    if (idx >= 0) {
+      beam.segments.splice(idx, 1);
+      undoStack.push({ action: 'removeSeg', beamId: beam.id, seg });
+    }
+  } else if (currentTarget.type === 'slabRegion') {
+    const slab = currentTarget.slab;
+    const region = currentTarget.region;
+    const idx = slab.regions.indexOf(region);
+    if (idx >= 0) {
+      slab.regions.splice(idx, 1);
+      undoStack.push({ action: 'removeRegion', slabId: slab.id, region });
+    }
+  }
+  document.getElementById('statusPopup').classList.remove('active');
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
+  currentTarget = null;
+  refresh();
+}
+
+// ---- Tooltip ----
+function showSvgTooltip(e, data) {
+  const tooltip = document.getElementById('svgTooltip');
+  let html = '';
+  if (data.type === 'pile') {
+    html = `
+      <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.id}</span></div>
+      <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.type}</span></div>
+      <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.status]}</span></div>
+    `;
+  } else if (data.type === 'beam') {
+    html = `
+      <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.beam.id}</span></div>
+      <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.beam.type}</span></div>
+      <div class="tt-row"><span class="tt-label">长度:</span><span class="tt-val">${data.beam.totalLength}m</span></div>
+      <div class="tt-row"><span class="tt-label">段状态:</span><span class="tt-val">${STATUS_LABELS[data.seg.status]}</span></div>
+    `;
+  } else if (data.type === 'slab') {
+    html = `
+      <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.slab.id}</span></div>
+      <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.slab.type}</span></div>
+      <div class="tt-row"><span class="tt-label">面积:</span><span class="tt-val">${data.slab.area}m\u00B2</span></div>
+      <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.slab.status]}</span></div>
+    `;
+  } else if (data.type === 'slabRegion') {
+    html = `
+      <div class="tt-row"><span class="tt-label">板ID:</span><span class="tt-val">${data.slab.id}</span></div>
+      <div class="tt-row"><span class="tt-label">子区域:</span><span class="tt-val">区域 #${data.slab.regions.indexOf(data.region) + 1}</span></div>
+      <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.region.status]}</span></div>
+    `;
+  }
+  tooltip.innerHTML = html;
+  const container = document.getElementById('planContainer');
+  const rect = container.getBoundingClientRect();
+  tooltip.style.left = (e.clientX - rect.left + 12) + 'px';
+  tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+  tooltip.classList.add('active');
+}
+
+function hideSvgTooltip() {
+  document.getElementById('svgTooltip').classList.remove('active');
+}
+
+// ============================================================
+// PANEL TOGGLE
+// ============================================================
+
+function togglePanel(side) {
+  const panel = document.getElementById(side === 'left' ? 'leftPanel' : 'rightPanel');
+  const btn = document.getElementById(side === 'left' ? 'toggleLeft' : 'toggleRight');
+  const isCollapsed = panel.classList.toggle('collapsed');
+  btn.textContent = side === 'left' ? (isCollapsed ? '❯' : '❮') : (isCollapsed ? '❮' : '❯');
+  // Re-center the SVG view after panel toggle
+  setTimeout(() => resetView(), 350);
+}
+
+// Auto-collapse panels on narrow screens
+function checkViewportWidth() {
+  const w = window.innerWidth;
+  const leftPanel = document.getElementById('leftPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  const toggleLeft = document.getElementById('toggleLeft');
+  const toggleRight = document.getElementById('toggleRight');
+  if (w < 1000) {
+    if (!leftPanel.classList.contains('collapsed')) {
+      leftPanel.classList.add('collapsed');
+      toggleLeft.textContent = '❯';
+    }
+    if (!rightPanel.classList.contains('collapsed')) {
+      rightPanel.classList.add('collapsed');
+      toggleRight.textContent = '❮';
+    }
+  } else if (w < 1400) {
+    // Collapse right panel only
+    if (!rightPanel.classList.contains('collapsed')) {
+      rightPanel.classList.add('collapsed');
+      toggleRight.textContent = '❮';
+    }
+  }
+}
+window.addEventListener('resize', () => {
+  checkViewportWidth();
+  resetView();
+});
+// Run on init
+setTimeout(() => { checkViewportWidth(); resetView(); }, 100);
+
+// ============================================================
+// INIT
+// ============================================================
+
+init();
+</script>
+</body>
+</html>

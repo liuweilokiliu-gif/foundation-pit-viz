@@ -1,0 +1,11 @@
+# DXF source files are too large for git
+*.dxf
+
+# Temporary work files
+__pycache__/
+*.pyc
+*.tmp
+
+# OS files
+Thumbs.db
+.DS_Store
