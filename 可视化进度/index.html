@@ -1015,6 +1015,10 @@ const TYPES = {
 // REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
 // ============================================================
 
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
 // ---- Real data: Piles ----
 const piles = [
   { id: 'YP001', type: '咬合桩-荤桩', x: 171.8, y: 560.3, r: 6.6, status: 'pending' },
@@ -1660,8 +1664,8 @@ const beams = [
 
 // ---- Real data: Slabs (盖板 from HATCH) ----
 const slabs = [
-  { id: 'GB1', type: '盖板', polygon: [{x:32.1,y:803.7}, {x:1024.4,y:748.4}, {x:1283.2,y:494.8}, {x:1273.8,y:744.1}], area: 297.4, status: 'pending', regions: [] },
-  { id: 'GB2', type: '盖板', polygon: [{x:32.1,y:803.7}, {x:1045.1,y:198.3}, {x:1294.2,y:199.3}, {x:1284.9,y:448.2}], area: 1910.5, status: 'pending', regions: [] },
+  { id: 'GB1', type: '盖板', polygon: [{x:1024.4,y:748.4}, {x:1283.2,y:494.8}, {x:1273.8,y:744.1}], area: 257.9, status: 'pending', regions: [] },
+  { id: 'GB2', type: '盖板', polygon: [{x:1045.1,y:198.3}, {x:1294.2,y:199.3}, {x:1284.9,y:448.2}], area: 257.4, status: 'pending', regions: [] },
 ];
 // Total: 2 slabs
 
@@ -1699,6 +1703,8 @@ function calcPathLength(points, startIdx, endIdx) {
   }
   return Math.round(len);
 }
+
+
 
 
 
