@@ -1055,6 +1055,26 @@ const TYPES = {
 // REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
 // ============================================================
 
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
+// ============================================================
+// REAL DATA from Drawing3.dxf (v3 - user confirmed classification)
+// ============================================================
+
 // ---- Real data: Piles ----
 const piles = [
   { id: 'YP001', type: '咬合桩-荤桩', x: 166.8, y: 267.4, r: 6.6, status: 'pending' },
@@ -1712,8 +1732,16 @@ const slabs = [
 
 // ---- Real data: Box Culvert Outline (非结构构件) ----
 const boxCulverts = [
-  { id: 'XH1', path: [{x:54.9,y:685.1}, {x:114.5,y:627.5}, {x:295.9,y:459.6}, {x:411.2,y:353.5}, {x:552.4,y:220.4}, {x:755.7,y:133.4}, {x:948.1,y:132.3}, {x:1345.1,y:132.1}] },
-  { id: 'XH2', path: [{x:54.9,y:730.3}, {x:143.7,y:644.4}, {x:321.1,y:480.5}, {x:427.0,y:382.3}, {x:576.2,y:242.7}, {x:715.7,y:171.4}, {x:770.0,y:165.1}, {x:939.0,y:164.2}, {x:1326.1,y:163.1}, {x:1345.1,y:163.2}] },
+  { id: 'XH1', path: [{x:54.9,y:685.1}, {x:114.5,y:627.5}, {x:295.9,y:459.6}, {x:411.2,y:353.5}, {x:552.4,y:220.4}, {x:563.2,y:211.3}, {x:574.3,y:202.7}, {x:585.7,y:194.5}, {x:597.4,y:186.8}, {x:609.4,y:179.5}, {x:621.8,y:172.8}, {x:634.3,y:166.5}, {x:647.1,y:160.7}, {x:660.1,y:155.4}, {x:673.4,y:150.7}, {x:686.8,y:146.4}, {x:700.3,y:142.8}, {x:714.0,y:139.6}, {x:727.8,y:137.0}, {x:741.7,y:134.9}, {x:755.7,y:133.4}, {x:948.1,y:132.3}, {x:1345.1,y:132.1}] },
+  { id: 'XH2', path: [{x:54.9,y:730.3}, {x:143.7,y:644.4}, {x:321.1,y:480.5}, {x:427.0,y:382.3}, {x:576.2,y:242.7}, {x:583.7,y:236.3}, {x:591.4,y:230.2}, {x:599.4,y:224.2}, {x:607.5,y:218.6}, {x:615.7,y:213.1}, {x:624.2,y:208.0}, {x:632.8,y:203.1}, {x:641.5,y:198.4}, {x:650.4,y:194.1}, {x:659.4,y:190.0}, {x:668.5,y:186.2}, {x:677.8,y:182.6}, {x:687.1,y:179.4}, {x:696.6,y:176.4}, {x:706.1,y:173.8}, {x:715.7,y:171.4}, {x:719.0,y:170.6}, {x:722.4,y:169.9}, {x:725.7,y:169.3}, {x:729.1,y:168.6}, {x:732.5,y:168.1}, {x:735.9,y:167.5}, {x:739.2,y:167.1}, {x:742.6,y:166.7}, {x:746.0,y:166.3}, {x:749.5,y:166.0}, {x:752.9,y:165.7}, {x:756.3,y:165.5}, {x:759.7,y:165.3}, {x:763.1,y:165.2}, {x:766.5,y:165.2}, {x:770.0,y:165.1}, {x:939.0,y:164.2}, {x:1326.1,y:163.1}, {x:1345.1,y:163.2}] },
+];
+
+// ---- Real data: Red Line (用地红线) ----
+const redLine = [
+  {x1:165.9, y1:797.4, x2:155.2, y2:167.6},
+  {x1:155.2, y1:167.6, x2:1311.9, y2:171.8},
+  {x1:1311.9, y1:171.8, x2:1289.1, y2:777.9},
+  {x1:1289.1, y1:777.9, x2:165.9, y2:797.4},
 ];
 
 // ---- Real data: Slope/Auxiliary Lines ----
@@ -1733,6 +1761,16 @@ function calcPathLength(points, startIdx, endIdx) {
   }
   return Math.round(len);
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1800,6 +1838,8 @@ function screenToSvg(clientX, clientY) {
 
 function init() {
   renderOutline();
+  renderBoxCulverts();
+  renderRedLine();
   // Create drawPreview layer (persistent across refresh)
   const previewLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
   previewLayer.setAttribute('id', 'drawPreview');
@@ -1858,6 +1898,82 @@ function renderOutline() {
   nText.textContent = 'N';
   north.appendChild(nLine); north.appendChild(nText);
   g.appendChild(north);
+
+  svg.appendChild(g);
+}
+
+// ---- Render Box Culverts (箱涵轮廓线) ----
+function renderBoxCulverts() {
+  if (typeof boxCulverts === 'undefined' || !boxCulverts || boxCulverts.length === 0) return;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'boxCulvertsGroup');
+
+  boxCulverts.forEach(bc => {
+    if (bc.path.length < 2) return;
+    const pts = bc.path.map(p => `${p.x},${p.y}`).join(' ');
+    // Background glow
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    bg.setAttribute('points', pts);
+    bg.setAttribute('fill', 'none');
+    bg.setAttribute('stroke', 'rgba(0,188,212,0.15)');
+    bg.setAttribute('stroke-width', '5');
+    bg.setAttribute('stroke-linecap', 'round');
+    bg.setAttribute('stroke-linejoin', 'round');
+    bg.setAttribute('pointer-events', 'none');
+    g.appendChild(bg);
+    // Foreground line
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+    line.setAttribute('points', pts);
+    line.setAttribute('fill', 'none');
+    line.setAttribute('stroke', '#00bcd4');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '8,4');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('stroke-linejoin', 'round');
+    line.setAttribute('opacity', '0.6');
+    line.setAttribute('pointer-events', 'stroke');
+    line.style.cursor = 'pointer';
+    // Hover
+    line.addEventListener('mouseenter', (e) => {
+      line.setAttribute('opacity', '1');
+      line.setAttribute('stroke-width', '3');
+      bg.setAttribute('stroke', 'rgba(0,188,212,0.3)');
+      bg.setAttribute('stroke-width', '7');
+      showSvgTooltip(e, { type: 'boxCulvert', id: bc.id, label: '箱涵轮廓线', points: bc.path.length });
+    });
+    line.addEventListener('mouseleave', () => {
+      line.setAttribute('opacity', '0.6');
+      line.setAttribute('stroke-width', '2');
+      bg.setAttribute('stroke', 'rgba(0,188,212,0.15)');
+      bg.setAttribute('stroke-width', '5');
+      hideSvgTooltip();
+    });
+    g.appendChild(line);
+  });
+
+  svg.appendChild(g);
+}
+
+// ---- Render Red Line (用地红线) ----
+function renderRedLine() {
+  if (typeof redLine === 'undefined' || !redLine || redLine.length === 0) return;
+  const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  g.setAttribute('id', 'redLineGroup');
+
+  redLine.forEach(seg => {
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', seg.x1);
+    line.setAttribute('y1', seg.y1);
+    line.setAttribute('x2', seg.x2);
+    line.setAttribute('y2', seg.y2);
+    line.setAttribute('stroke', '#e53935');
+    line.setAttribute('stroke-width', '1.5');
+    line.setAttribute('stroke-dasharray', '12,6');
+    line.setAttribute('opacity', '0.5');
+    line.setAttribute('fill', 'none');
+    line.setAttribute('pointer-events', 'none');
+    g.appendChild(line);
+  });
 
   svg.appendChild(g);
 }
@@ -2651,7 +2767,7 @@ function renderDetailTable() {
 // ============================================================
 
 let vbX = 0, vbY = 0, vbW = 1400, vbH = 900;
-let isPanning = false, panStartX, panStartY, vbStartX, vbStartY;
+let isPanning = false, hasDragged = false, panStartX, panStartY, vbStartX, vbStartY;
 
 function setupZoom() {
   const container = document.getElementById('planContainer');
@@ -2659,23 +2775,44 @@ function setupZoom() {
 
   container.addEventListener('mousedown', (e) => {
     if (drawingMode) return;
+    // Don't start pan if clicking on an interactive element (pile, beam, etc.)
+    if (e.target.closest('[data-id]') || e.target.closest('[data-type]')) return;
     isPanning = true;
+    hasDragged = false;
     panStartX = e.clientX;
     panStartY = e.clientY;
     vbStartX = vbX;
     vbStartY = vbY;
+    container.style.cursor = 'grabbing';
   });
   container.addEventListener('mousemove', (e) => {
     if (!isPanning) return;
+    const dx = e.clientX - panStartX;
+    const dy = e.clientY - panStartY;
+    if (!hasDragged && Math.sqrt(dx*dx + dy*dy) < 5) return; // Wait for threshold
+    hasDragged = true;
     const rect = container.getBoundingClientRect();
     const scaleX = vbW / rect.width;
     const scaleY = vbH / rect.height;
-    vbX = vbStartX - (e.clientX - panStartX) * scaleX;
-    vbY = vbStartY - (e.clientY - panStartY) * scaleY;
+    vbX = vbStartX - dx * scaleX;
+    vbY = vbStartY - dy * scaleY;
     updateViewBox();
   });
-  container.addEventListener('mouseup', () => { isPanning = false; });
-  container.addEventListener('mouseleave', () => { isPanning = false; });
+  container.addEventListener('mouseup', () => {
+    isPanning = false;
+    container.style.cursor = '';
+  });
+  container.addEventListener('mouseleave', () => {
+    isPanning = false;
+    container.style.cursor = '';
+  });
+  // Prevent click after drag
+  container.addEventListener('click', (e) => {
+    if (hasDragged) {
+      e.stopPropagation();
+      hasDragged = false;
+    }
+  }, true);
   container.addEventListener('wheel', (e) => {
     e.preventDefault();
     const rect = container.getBoundingClientRect();
@@ -2750,6 +2887,8 @@ function refresh() {
   const drawPreview = document.getElementById('drawPreview');
   svg.innerHTML = '';
   if (outlineGroup) svg.appendChild(outlineGroup);
+  renderBoxCulverts();
+  renderRedLine();
   renderPiles();
   renderBeams();
   renderSlabs();
@@ -3350,6 +3489,12 @@ function showSvgTooltip(e, data) {
       <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.id}</span></div>
       <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.label}</span></div>
       <div class="tt-row"><span class="tt-label">总长:</span><span class="tt-val">${data.totalLength}m</span></div>
+    `;
+  } else if (data.type === 'boxCulvert') {
+    html = `
+      <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.id}</span></div>
+      <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.label}</span></div>
+      <div class="tt-row"><span class="tt-label">节点数:</span><span class="tt-val">${data.points}</span></div>
     `;
   }
   tooltip.innerHTML = html;
