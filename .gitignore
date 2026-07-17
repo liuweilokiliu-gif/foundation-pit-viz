@@ -1,6 +1,12 @@
 # DXF source files are too large for git
 *.dxf
 
+# Dependencies
+node_modules/
+
+# Tool config (local only)
+.trae/
+
 # Temporary work files
 __pycache__/
 *.pyc
