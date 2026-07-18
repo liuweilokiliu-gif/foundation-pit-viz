@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.7/dist/umd/supabase.min.js"></script>
 <title>梅林公安街东侧地块项目基坑支护、土石方及桩基工程</title>
 <style>
 /* ===== CSS Variables ===== */
@@ -1203,6 +1204,20 @@ body {
 
 <script>
 // ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SUPABASE_URL = 'https://kbuqctijmmpliewekfwa.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-PM5kU3cbXOmJrnMmqrvIg_WSo0Mr0c';
+let sb = null; // will be initialized when SDK loads
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    return true;
+  }
+  return false;
+}
+
+// ============================================================
 // DATA MODEL
 // ============================================================
 
@@ -1272,6 +1287,25 @@ function savePileData() {
     };
   });
   localStorage.setItem('pileExtData', JSON.stringify(data));
+  // Sync to Supabase
+  if (sb) {
+    const rows = Object.entries(data).map(([pileId, ext]) => ({
+      project_id: 'meilin',
+      pile_id: pileId,
+      pile_no: ext.pileNo || null,
+      diameter: ext.diameter || null,
+      design_length: ext.designLength || null,
+      design_top_elev: ext.designTopElev || null,
+      design_bottom_elev: ext.designBottomElev || null,
+      rock_depth: ext.rockDepth || null,
+      rock_elev: ext.rockElev || null,
+      actual_bottom_elev: ext.actualBottomElev || null,
+      actual_length: ext.actualLength || null
+    }));
+    sb.from('pile_ext_data').upsert(rows, { onConflict: 'project_id,pile_id' }).then(({error}) => {
+      if (error) console.warn('Supabase pile data write error:', error);
+    });
+  }
 }
 
 // Auto-calculate derived fields
@@ -2000,6 +2034,15 @@ function loadPlanStore() {
 }
 function savePlanStore() {
   localStorage.setItem('planStore', JSON.stringify(planStore));
+  // Sync to Supabase
+  if (sb) {
+    sb.from('project_plan').upsert({
+      project_id: 'meilin',
+      plan_data: planStore
+    }, { onConflict: 'project_id' }).then(({error}) => {
+      if (error) console.warn('Supabase plan data write error:', error);
+    });
+  }
 }
 
 function getPlanKey() {
@@ -2336,6 +2379,27 @@ function saveBaseline() {
 
 let baseline = {};
 
+async function loadBaselineFromCloud() {
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.from('project_status').select('*').eq('project_id', 'meilin').order('status_date', { ascending: true });
+    if (error) throw error;
+    if (!data || data.length === 0) return false;
+    // Reconstruct dateSnapshots from cloud data
+    const cloudSnapshots = {};
+    data.forEach(row => {
+      if (!cloudSnapshots[row.status_date]) cloudSnapshots[row.status_date] = [];
+      cloudSnapshots[row.status_date].push({ targetId: row.target_id, newStatus: row.status });
+    });
+    dateSnapshots = cloudSnapshots;
+    localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
+    return true;
+  } catch (e) {
+    console.warn('Cloud load failed:', e);
+    return false;
+  }
+}
+
 function loadBaseline() {
   // 清除旧ID的缓存数据，确保使用新编号
   localStorage.removeItem('baseline');
@@ -2343,6 +2407,14 @@ function loadBaseline() {
   // 重新生成基线
   baseline = saveBaseline();
   localStorage.setItem('baseline', JSON.stringify(baseline));
+  // Try cloud sync in background
+  loadBaselineFromCloud().then(ok => {
+    if (ok) {
+      const dateInput = document.getElementById('dateInput');
+      if (dateInput) applyDateView(dateInput.value);
+      updateStats();
+    }
+  });
 }
 
 function recordChange(targetId, newStatus) {
@@ -2358,6 +2430,42 @@ function recordChange(targetId, newStatus) {
   }
   // Persist to localStorage
   try { localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots)); } catch(e) {}
+  // Dual-write to Supabase
+  if (sb) {
+    sb.from('project_status').upsert({
+      project_id: 'meilin',
+      target_id: targetId,
+      status: newStatus,
+      status_date: date
+    }, { onConflict: 'project_id,target_id,status_date' }).then(({error}) => {
+      if (error) console.warn('Supabase write error:', error);
+    });
+  }
+}
+
+function subscribeRealtime() {
+  if (!sb) return;
+  sb.channel('status-changes')
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'project_status'
+    }, (payload) => {
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const { target_id, status, status_date } = payload.new;
+        // Add to dateSnapshots if not already present
+        if (!dateSnapshots[status_date]) dateSnapshots[status_date] = [];
+        const existing = dateSnapshots[status_date].find(e => e.targetId === target_id);
+        if (existing) existing.newStatus = status;
+        else dateSnapshots[status_date].push({ targetId: target_id, newStatus: status });
+        localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
+        // Re-apply current date view
+        const dateInput = document.getElementById('dateInput');
+        if (dateInput) applyDateView(dateInput.value);
+        updateStats();
+      }
+    })
+    .subscribe();
 }
 
 function applyDateView(targetDate) {
@@ -2460,6 +2568,9 @@ function init() {
   renderPlanPanel();
   setupZoom();
   setupEditingEvents();
+  // Initialize Supabase and subscribe to realtime changes
+  initSupabase();
+  if (sb) subscribeRealtime();
 }
 
 // ---- Render 基坑轮廓 ----
