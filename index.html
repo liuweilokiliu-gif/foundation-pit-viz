@@ -2696,35 +2696,45 @@ async function loadBaselineFromCloud() {
 }
 
 function loadBaseline() {
+  console.log('[DEBUG loadBaseline] START. localStorage keys:', Object.keys(localStorage));
   // Only regenerate baseline if not already cached
   const cached = localStorage.getItem('baseline');
   if (cached) {
     baseline = JSON.parse(cached);
+    console.log('[DEBUG loadBaseline] baseline loaded from cache, keys:', Object.keys(baseline).length);
   } else {
     baseline = saveBaseline();
     localStorage.setItem('baseline', JSON.stringify(baseline));
+    console.log('[DEBUG loadBaseline] baseline generated fresh, keys:', Object.keys(baseline).length);
   }
   // Load dateSnapshots from localStorage
   const cachedSnapshots = localStorage.getItem('dateSnapshots');
+  console.log('[DEBUG loadBaseline] dateSnapshots from localStorage:', cachedSnapshots ? cachedSnapshots.substring(0, 100) : 'NULL');
   if (cachedSnapshots) {
     dateSnapshots = JSON.parse(cachedSnapshots);
   }
   // Try cloud sync in background (only if no local data exists)
   if (!cachedSnapshots || cachedSnapshots === '{}') {
+    console.log('[DEBUG loadBaseline] No local data, loading from cloud...');
     loadBaselineFromCloud().then(ok => {
+      console.log('[DEBUG loadBaseline] Cloud load result:', ok);
       if (ok) {
         const dateInput = document.getElementById('dateInput');
         if (dateInput) applyDateView(dateInput.value);
         updateStats();
       }
     });
+  } else {
+    console.log('[DEBUG loadBaseline] Local data exists, skipping cloud load');
   }
+  console.log('[DEBUG loadBaseline] END. dateSnapshots keys:', Object.keys(dateSnapshots));
 }
 
 function recordChange(targetId, newStatus) {
   if (isReadOnly()) { showReadOnlyTip(); return; }
   const date = document.getElementById('dateInput').value;
   if (!date) return;
+  console.log('[DEBUG recordChange]', targetId, newStatus, 'date:', date);
   if (!dateSnapshots[date]) dateSnapshots[date] = [];
   // Check if last entry for same target in same date — if so, update it (avoid duplicates)
   const lastIdx = dateSnapshots[date].findLastIndex(e => e.targetId === targetId);
@@ -2734,7 +2744,13 @@ function recordChange(targetId, newStatus) {
     dateSnapshots[date].push({ targetId, newStatus });
   }
   // Persist to localStorage
-  try { localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots)); } catch(e) {}
+  try {
+    localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
+    const verify = localStorage.getItem('dateSnapshots');
+    console.log('[DEBUG recordChange] Saved to localStorage. Verify:', verify ? 'OK (len=' + verify.length + ')' : 'FAILED!');
+  } catch(e) {
+    console.error('[DEBUG recordChange] localStorage write FAILED:', e);
+  }
   // Dual-write to Supabase
   if (sb && currentUser) {
     sb.from('project_status').upsert({
@@ -2786,6 +2802,7 @@ function subscribeRealtime() {
 }
 
 function applyDateView(targetDate) {
+  console.log('[DEBUG applyDateView] targetDate:', targetDate, 'dateSnapshots keys:', Object.keys(dateSnapshots));
   // Reset all items to baseline
   piles.forEach(p => { p.status = baseline[p.id] || 'pending'; });
   beamPolygons.forEach(bp => { bp.status = baseline[bp.id] || 'pending'; if (bp.segments) bp.segments.forEach((s, i) => { s.status = baseline[bp.id + '_seg_' + i] || 'pending'; }); });
@@ -2794,9 +2811,9 @@ function applyDateView(targetDate) {
 
   // Replay all changes up to targetDate (inclusive), sorted by date
   const sortedDates = Object.keys(dateSnapshots).filter(d => d <= targetDate).sort();
+  console.log('[DEBUG applyDateView] sortedDates to replay:', sortedDates, 'total changes:', sortedDates.reduce((sum, d) => sum + dateSnapshots[d].length, 0));
   sortedDates.forEach(date => {
     dateSnapshots[date].forEach(change => {
-      // Find the target and update
       setItemStatus(change.targetId, change.newStatus);
     });
   });
