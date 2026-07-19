@@ -115,6 +115,77 @@ body {
   font-size: 12px;
   margin-left: 8px;
 }
+.login-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+}
+.login-card {
+  background: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.login-card h3 {
+  margin: 0 0 16px;
+  color: var(--text-primary, #e2e8f0);
+  font-size: 18px;
+  text-align: center;
+}
+.login-card label {
+  display: block;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.login-card input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #334155);
+  background: var(--bg-primary, #0f172a);
+  color: var(--text-primary, #e2e8f0);
+  font-size: 14px;
+  box-sizing: border-box;
+  outline: none;
+}
+.login-card input:focus {
+  border-color: var(--accent, #3b82f6);
+}
+.login-card .login-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.login-card .btn-cancel {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #334155);
+  background: transparent;
+  color: var(--text-secondary, #94a3b8);
+  cursor: pointer;
+  font-size: 14px;
+}
+.login-card .btn-cancel:hover {
+  background: rgba(255,255,255,0.05);
+}
+.login-card .btn-login {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+.login-card .btn-login:hover {
+  opacity: 0.9;
+}
 .btn {
   background: var(--accent);
   color: #fff;
@@ -1114,21 +1185,21 @@ body {
 </div>
 
 <!-- Login Dialog -->
-<div id="loginDialog" class="modal-overlay" style="display:none" onclick="if(event.target===this)toggleLoginDialog(false)">
-  <div class="modal-card" style="width:360px;padding:24px;" onclick="event.stopPropagation()">
-    <h3 style="margin:0 0 16px;color:var(--text-primary);font-size:16px;">登录</h3>
-    <div style="margin-bottom:12px;">
-      <label style="display:block;color:var(--text-secondary);font-size:12px;margin-bottom:4px;">邮箱</label>
-      <input id="loginEmail" type="email" placeholder="请输入邮箱" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;">
+<div id="loginDialog" class="login-overlay" style="display:none" onclick="if(event.target===this)toggleLoginDialog(false)">
+  <div class="login-card" style="width:360px;padding:28px;" onclick="event.stopPropagation()">
+    <h3>用户登录</h3>
+    <div style="margin-bottom:14px;">
+      <label>邮箱</label>
+      <input id="loginEmail" type="email" placeholder="请输入邮箱" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
     </div>
-    <div style="margin-bottom:16px;">
-      <label style="display:block;color:var(--text-secondary);font-size:12px;margin-bottom:4px;">密码</label>
-      <input id="loginPassword" type="password" placeholder="请输入密码" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-primary);font-size:14px;box-sizing:border-box;" onkeydown="if(event.key==='Enter')doLogin()">
+    <div style="margin-bottom:6px;">
+      <label>密码</label>
+      <input id="loginPassword" type="password" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
-    <div id="loginError" style="color:#ef5350;font-size:12px;margin-bottom:12px;display:none"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;">
-      <button onclick="toggleLoginDialog(false)" style="padding:6px 16px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text-secondary);cursor:pointer;font-size:13px;">取消</button>
-      <button onclick="doLogin()" style="padding:6px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-size:13px;">登录</button>
+    <div id="loginError" style="color:#ef5350;font-size:13px;margin-bottom:14px;min-height:18px;"></div>
+    <div class="login-actions">
+      <button class="btn-cancel" onclick="toggleLoginDialog(false)">取消</button>
+      <button class="btn-login" onclick="doLogin()">登录</button>
     </div>
   </div>
 </div>
@@ -1305,7 +1376,7 @@ function toggleLoginDialog(show) {
   if (show) {
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPassword').value = '';
-    document.getElementById('loginError').style.display = 'none';
+    document.getElementById('loginError').textContent = '';
     setTimeout(() => document.getElementById('loginEmail').focus(), 100);
   }
 }
@@ -1317,10 +1388,9 @@ async function doLogin() {
   const errorDiv = document.getElementById('loginError');
   if (!email || !password) {
     errorDiv.textContent = '请输入邮箱和密码';
-    errorDiv.style.display = 'block';
     return;
   }
-  errorDiv.style.display = 'none';
+  errorDiv.textContent = '';
   try {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
@@ -1331,13 +1401,11 @@ async function doLogin() {
       else if (msg.includes('Network')) msg = '网络连接失败，请检查网络';
       else msg = '登录失败：' + msg;
       errorDiv.textContent = msg;
-      errorDiv.style.display = 'block';
     } else {
       toggleLoginDialog(false);
     }
   } catch (e) {
     errorDiv.textContent = '登录请求失败：' + e.message;
-    errorDiv.style.display = 'block';
   }
 }
 
