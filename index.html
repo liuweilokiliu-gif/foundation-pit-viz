@@ -1362,10 +1362,16 @@ function updateAuthUI() {
   const userSpan = document.getElementById('authUser');
   if (currentUser) {
     btn.textContent = '登出';
+    btn.onclick = async () => {
+      try { await sb.auth.signOut(); } catch(e) { console.warn('Sign out error:', e); }
+      currentUser = null;
+      updateAuthUI();
+    };
     userSpan.textContent = currentUser.email;
     userSpan.style.display = 'inline';
   } else {
     btn.textContent = '登录';
+    btn.onclick = () => toggleLoginDialog(true);
     userSpan.style.display = 'none';
   }
 }
