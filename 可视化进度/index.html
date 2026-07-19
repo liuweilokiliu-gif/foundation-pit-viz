@@ -2614,6 +2614,8 @@ function recordChange(targetId, newStatus) {
 
 function subscribeRealtime() {
   if (!sb) return;
+  // Remove existing channel to avoid "cannot add callbacks after subscribed" error
+  try { sb.removeChannel('status-changes'); } catch(e) {}
   sb.channel('status-changes')
     .on('postgres_changes', {
       event: '*',
