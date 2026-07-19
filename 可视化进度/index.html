@@ -2197,7 +2197,7 @@ const PLAN_CATEGORIES = [
 
 // Major categories for header progress bar
 const MAJOR_CATEGORIES = [
-  { label: '咬合桩', unit: '根', color: '#64B5F6', types: ['咬合桩-荤桩', '咬合桩-素桩'] },
+  { label: '咬合桩', unit: '根', color: '#64B5F6', types: ['咬合桩-荤桩', '咬合桩-素桩', '箱涵支护桩-荤桩', '箱涵支护桩-素桩'] },
   { label: '旋喷桩', unit: '根', color: '#BA68C8', types: ['双管旋喷桩'] },
   { label: '微型桩', unit: '根', color: '#4DB6AC', types: ['微型桩'] },
   { label: '立柱桩', unit: '根', color: '#FF8A65', types: ['立柱桩'] },
@@ -3750,6 +3750,13 @@ function renderProgressList() {
             },
             { name: '双管旋喷桩', types: ['双管旋喷桩'] },
             { name: '微型桩', types: ['微型桩'] }
+          ]
+        },
+        {
+          name: '箱涵支护桩',
+          children: [
+            { name: '荤桩', types: ['箱涵支护桩-荤桩'] },
+            { name: '素桩', types: ['箱涵支护桩-素桩'] }
           ]
         },
         { name: '立柱桩', types: ['立柱桩'] },
