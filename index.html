@@ -1240,7 +1240,9 @@ const TYPES = {
   '冠梁':         { category: 'beam', unit: '米', color: '#fdd835', icon: '━' },
   '对撑':         { category: 'beam', unit: '米', color: '#ef5350', icon: '═' },
   '角撑':         { category: 'beam', unit: '米', color: '#ff7043', icon: '╲' },
-  '盖板':         { category: 'slab', unit: 'm²', color: '#4db6ac', icon: '◼' }
+  '盖板':         { category: 'slab', unit: 'm²', color: '#4db6ac', icon: '◼' },
+  '箱涵支护桩-荤桩': { category: 'pile',  unit: '根', color: '#26a69a', icon: '⭕' },
+  '箱涵支护桩-素桩': { category: 'pile',  unit: '根', color: '#80cbc4', icon: '⭕' }
 };
 
 // Pile diameter mapping: type + r -> diameter (mm)
@@ -1250,7 +1252,9 @@ const PILE_DIAMETER_MAP = {
   '立柱桩': 800,
   '微型桩': 300,
   '双管旋喷桩': 600,
-  '工程桩': null // depends on r: 8.8->1200, 6.6->1000
+  '工程桩': null, // depends on r: 8.8->1200, 6.6->1000
+  '箱涵支护桩-荤桩': 1000,
+  '箱涵支护桩-素桩': 600
 };
 
 // Initialize pile extended data
@@ -1866,8 +1870,82 @@ const piles = [
   { id: 'GC032', type: '工程桩', x: 1162.1, y: 563.1, r: 6.6, status: 'pending' },
   { id: 'GC033', type: '工程桩', x: 1162, y: 596.1, r: 8.8, status: 'pending' },
   { id: 'GC034', type: '工程桩', x: 1006.5, y: 337.5, r: 6.6, status: 'pending' },
+  // 箱涵支护桩 - 荤桩
+  {id:'XH001-荤', x:593.8, y:156.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH002-荤', x:580, y:165.4, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH003-荤', x:566.3, y:174.8, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH004-荤', x:553.7, y:183.4, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH005-荤', x:536.1, y:183.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH006-荤', x:518.6, y:184.4, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH007-荤', x:501, y:184.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH008-荤', x:483.4, y:185.5, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH009-荤', x:465.9, y:186, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH010-荤', x:448.3, y:186.5, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH011-荤', x:430.8, y:187, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH012-荤', x:413.2, y:187.5, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH013-荤', x:395.7, y:188.1, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH014-荤', x:378.1, y:188.6, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH015-荤', x:360.6, y:189.1, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH016-荤', x:343, y:189.6, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH017-荤', x:325.5, y:190.1, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH018-荤', x:307.9, y:190.7, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH019-荤', x:290.3, y:191.2, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH020-荤', x:272.8, y:191.7, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH021-荤', x:255.2, y:192.2, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH022-荤', x:237.7, y:192.8, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH023-荤', x:220.1, y:193.3, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH024-荤', x:202.6, y:193.8, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH025-荤', x:185, y:194.3, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH026-荤', x:167.5, y:194.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH027-荤', x:150.1, y:197.3, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH028-荤', x:133.3, y:202.4, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH029-荤', x:117.5, y:210.1, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH030-荤', x:103.2, y:220.2, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH031-荤', x:90.6, y:232.5, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH032-荤', x:80.1, y:246.6, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH033-荤', x:72, y:262.1, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH034-荤', x:64.9, y:277.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH035-荤', x:53.1, y:288.8, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  {id:'XH036-荤', x:35.7, y:289.7, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
+  // 箱涵支护桩 - 素桩
+  {id:'XH001-素', x:585.9, y:160.7, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH002-素', x:572.1, y:169.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH003-素', x:558.7, y:179.3, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH004-素', x:544.9, y:183.6, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH005-素', x:527.3, y:184.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH006-素', x:509.8, y:184.7, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH007-素', x:492.2, y:185.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH008-素', x:474.7, y:185.7, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH009-素', x:457.1, y:186.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH010-素', x:439.6, y:186.8, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH011-素', x:422, y:187.3, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH012-素', x:404.4, y:187.8, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH013-素', x:386.9, y:188.3, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH014-素', x:369.3, y:188.8, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH015-素', x:351.8, y:189.4, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH016-素', x:334.2, y:189.9, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH017-素', x:316.7, y:190.4, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH018-素', x:299.1, y:190.9, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH019-素', x:281.6, y:191.4, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH020-素', x:264, y:192, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH021-素', x:246.5, y:192.5, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH022-素', x:228.9, y:193, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH023-素', x:211.3, y:193.5, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH024-素', x:193.8, y:194.1, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH025-素', x:176.2, y:194.6, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH026-素', x:158.7, y:195.4, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH027-素', x:141.5, y:199.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH028-素', x:125.1, y:205.7, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH029-素', x:110, y:214.6, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH030-素', x:96.4, y:225.9, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH031-素', x:84.8, y:239.1, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH032-素', x:75.5, y:254, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH033-素', x:68.6, y:270.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH034-素', x:59.4, y:284.8, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH035-素', x:44.3, y:288.2, r:4, type:'箱涵支护桩-素桩', status:'pending'},
+  {id:'XH036-素', x:27, y:289, r:4, type:'箱涵支护桩-素桩', status:'pending'},
 ];
-// Total: 152 荤桩 + 151 素桩 + 72 微型桩 + 45 双管旋喷 + 26 立柱 = 446
+// Total: 152 咬合荤桩 + 106 咬合素桩 + 72 微型桩 + 45 双管旋喷 + 34 工程桩 + 26 立柱 + 36 箱涵荤桩 + 36 箱涵素桩 = 507
 
 // ---- Real data: Crown Beams (冠梁) ----
 const crownBeams = [
