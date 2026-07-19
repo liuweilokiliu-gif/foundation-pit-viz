@@ -2703,14 +2703,16 @@ function loadBaseline() {
   if (cachedSnapshots) {
     dateSnapshots = JSON.parse(cachedSnapshots);
   }
-  // Try cloud sync in background
-  loadBaselineFromCloud().then(ok => {
-    if (ok) {
-      const dateInput = document.getElementById('dateInput');
-      if (dateInput) applyDateView(dateInput.value);
-      updateStats();
-    }
-  });
+  // Try cloud sync in background (only if no local data exists)
+  if (!cachedSnapshots || cachedSnapshots === '{}') {
+    loadBaselineFromCloud().then(ok => {
+      if (ok) {
+        const dateInput = document.getElementById('dateInput');
+        if (dateInput) applyDateView(dateInput.value);
+        updateStats();
+      }
+    });
+  }
 }
 
 function recordChange(targetId, newStatus) {
@@ -2728,14 +2730,19 @@ function recordChange(targetId, newStatus) {
   // Persist to localStorage
   try { localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots)); } catch(e) {}
   // Dual-write to Supabase
-  if (sb) {
+  if (sb && currentUser) {
     sb.from('project_status').upsert({
       project_id: 'meilin',
       target_id: targetId,
       status: newStatus,
       status_date: date
     }, { onConflict: 'project_id,target_id,status_date' }).then(({error}) => {
-      if (error) console.warn('Supabase write error:', error);
+      if (error) {
+        console.error('Supabase write error:', error);
+        console.warn('Data saved to localStorage only. Cloud sync failed.');
+      } else {
+        console.log('Cloud sync OK:', targetId, newStatus, date);
+      }
     });
   }
 }
