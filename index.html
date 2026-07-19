@@ -2712,6 +2712,18 @@ function loadBaseline() {
   console.log('[DEBUG loadBaseline] dateSnapshots from localStorage:', cachedSnapshots ? cachedSnapshots.substring(0, 100) : 'NULL');
   if (cachedSnapshots) {
     dateSnapshots = JSON.parse(cachedSnapshots);
+    // Sanitize: remove entries with null targetId
+    let dirty = false;
+    for (const date in dateSnapshots) {
+      const before = dateSnapshots[date].length;
+      dateSnapshots[date] = dateSnapshots[date].filter(e => e && e.targetId);
+      if (dateSnapshots[date].length === 0) { delete dateSnapshots[date]; }
+      if (dateSnapshots[date].length !== before) dirty = true;
+    }
+    if (dirty) {
+      console.log('[DEBUG loadBaseline] Cleaned dirty data, saving corrected dateSnapshots');
+      localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
+    }
   }
   // Try cloud sync in background (only if no local data exists)
   if (!cachedSnapshots || cachedSnapshots === '{}') {
@@ -2732,6 +2744,7 @@ function loadBaseline() {
 
 function recordChange(targetId, newStatus) {
   if (isReadOnly()) { showReadOnlyTip(); return; }
+  if (!targetId) { console.warn('[recordChange] skipped null targetId'); return; }
   const date = document.getElementById('dateInput').value;
   if (!date) return;
   console.log('[DEBUG recordChange]', targetId, newStatus, 'date:', date);
@@ -2822,6 +2835,7 @@ function applyDateView(targetDate) {
 }
 
 function setItemStatus(targetId, newStatus) {
+  if (!targetId) { console.warn('[setItemStatus] skipped null targetId'); return; }
   // Check piles
   const pile = piles.find(p => p.id === targetId);
   if (pile) { pile.status = newStatus; return; }
