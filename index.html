@@ -115,6 +115,20 @@ body {
   font-size: 12px;
   margin-left: 8px;
 }
+.admin-clear-btn {
+  margin-left: 8px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid #ef5350;
+  background: transparent;
+  color: #ef5350;
+  cursor: pointer;
+  font-size: 11px;
+}
+.admin-clear-btn:hover {
+  background: #ef5350;
+  color: #fff;
+}
 .login-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -1181,6 +1195,7 @@ body {
     </select>
     <button class="auth-btn" id="authBtn" onclick="toggleLoginDialog(true)">登录</button>
     <span class="auth-user" id="authUser" style="display:none"></span>
+    <button class="admin-clear-btn" id="clearDataBtn" style="display:none" onclick="clearAllData()">清除数据</button>
   </div>
 </div>
 
@@ -1385,6 +1400,7 @@ function setupAuthListener() {
 function updateAuthUI() {
   const btn = document.getElementById('authBtn');
   const userSpan = document.getElementById('authUser');
+  const clearBtn = document.getElementById('clearDataBtn');
   if (currentUser) {
     btn.textContent = '登出';
     btn.onclick = async () => {
@@ -1394,11 +1410,42 @@ function updateAuthUI() {
     };
     userSpan.textContent = currentUser.email;
     userSpan.style.display = 'inline';
+    clearBtn.style.display = 'inline-block';
   } else {
     btn.textContent = '登录';
     btn.onclick = () => toggleLoginDialog(true);
     userSpan.style.display = 'none';
+    clearBtn.style.display = 'none';
   }
+}
+
+async function clearAllData() {
+  if (!currentUser) return;
+  // Double confirm
+  if (!confirm('确定要清除所有已填报的进度数据吗？此操作不可撤销。')) return;
+  if (!confirm('再次确认：将清除所有构件的状态数据和桩的扩展数据，确定继续？')) return;
+  // Clear localStorage
+  localStorage.removeItem('dateSnapshots');
+  localStorage.removeItem('pileExtData');
+  dateSnapshots = {};
+  // Reset all items to baseline status
+  piles.forEach(p => { p.status = 'pending'; p.pileNo = ''; p.designLength = ''; p.designTopElev = ''; p.designBottomElev = ''; p.rockDepth = ''; p.rockElev = ''; p.actualBottomElev = ''; p.actualLength = ''; });
+  beamPolygons.forEach(bp => { bp.status = 'pending'; if (bp.segments) bp.segments.forEach(s => { s.status = 'pending'; }); });
+  crownBeams.forEach(cb => { cb.status = 'pending'; if (cb.segments) cb.segments.forEach(s => { s.status = 'pending'; }); });
+  slabs.forEach(slab => { slab.status = 'pending'; if (slab.regions) slab.regions.forEach(r => { r.status = 'pending'; }); });
+  // Clear Supabase
+  if (sb) {
+    try {
+      await sb.from('project_status').delete().eq('project_id', 'meilin');
+      await sb.from('pile_ext_data').delete().eq('project_id', 'meilin');
+      console.log('Cloud data cleared');
+    } catch(e) {
+      console.warn('Cloud clear error:', e);
+    }
+  }
+  refresh();
+  updateStats();
+  renderHeaderProgress();
 }
 
 function toggleLoginDialog(show) {
@@ -1485,16 +1532,15 @@ const TYPES = {
   '箱涵支护桩-素桩': { category: 'pile',  unit: '根', color: '#80cbc4', icon: '⭕' }
 };
 
-// Pile diameter mapping: type + r -> diameter (mm)
+// Pile diameter mapping: type -> diameter (mm)
 const PILE_DIAMETER_MAP = {
-  '咬合桩-荤桩': 150,
-  '咬合桩-素桩': 600,
-  '立柱桩': 800,
-  '微型桩': 300,
+  '咬合桩-荤桩': 1200,
+  '咬合桩-素桩': 1000,
+  '立柱桩': 1000,
+  '微型桩': 220,
   '双管旋喷桩': 600,
-  '工程桩': null, // depends on r: 8.8->1200, 6.6->1000
-  '箱涵支护桩-荤桩': 1000,
-  '箱涵支护桩-素桩': 600
+  '箱涵支护桩-荤桩': 1200,
+  '箱涵支护桩-素桩': 800
 };
 
 // Initialize pile extended data
@@ -1503,7 +1549,7 @@ function initPileData() {
   piles.forEach(p => {
     // Diameter
     if (p.type === '工程桩') {
-      p.diameter = p.r >= 8 ? 1200 : 1000;
+      p.diameter = p.r >= 8 ? 1600 : 1200;
     } else {
       p.diameter = PILE_DIAMETER_MAP[p.type] || 0;
     }
@@ -3715,45 +3761,14 @@ function showBeamSegmentPopup(e, beam, seg) {
 function showBeamPolygonPopup(e, bp) {
   hideSvgTooltip();
   currentTarget = { type: 'beamPolygon', bp };
-  const popupInfo = document.getElementById('popupInfo');
-  popupInfo.innerHTML = `
-    <div class="popup-title">${bp.id} (${bp.type})</div>
-    <div class="popup-detail">长度: ${bp.totalLength}m</div>
-    <div class="popup-detail">状态: <strong>${STATUS_LABELS[bp.status]}</strong></div>
-    <div class="popup-actions">
-      <button class="popup-btn" data-status="doing" style="background:rgba(255,200,50,0.3)">施工中</button>
-      <button class="popup-btn" data-status="done" style="background:rgba(100,200,100,0.3)">已完成</button>
-      <button class="popup-btn" data-status="pending" style="background:rgba(160,180,200,0.3)">未施工</button>
-    </div>
-  `;
-  popupInfo.querySelectorAll('.popup-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const newStatus = btn.getAttribute('data-status');
-      bp.status = newStatus;
-      // Update polygon fill/stroke
-      const poly = document.querySelector(`.beam-polygon[data-id="${bp.id}"]`);
-      if (poly) {
-        const STATUS_FILL = {
-          pending: 'rgba(160,180,200,0.25)',
-          doing:   'rgba(255,200,50,0.35)',
-          done:    'rgba(100,200,100,0.35)'
-        };
-        const STATUS_STROKE = {
-          pending: 'rgba(160,180,200,0.5)',
-          doing:   'rgba(255,180,50,0.7)',
-          done:    'rgba(80,180,80,0.7)'
-        };
-        poly.setAttribute('fill', STATUS_FILL[newStatus]);
-        poly.setAttribute('stroke', STATUS_STROKE[newStatus]);
-      }
-      hideStatusPopup();
-      updateStats();
-    });
-  });
   const popup = document.getElementById('statusPopup');
+  const popupInfo = document.getElementById('popupInfo');
   document.getElementById('popupTitle').textContent = `${bp.id} (${bp.type})`;
-  popup.querySelectorAll('.status-option').forEach(opt => opt.classList.toggle('selected', opt.dataset.status === bp.status));
-  popupInfo.style.display = 'block';
+  popup.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.status === bp.status);
+  });
+  popupInfo.style.display = 'none';
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
   positionPopup(e, popup);
   popup.classList.add('active');
 }
@@ -3830,17 +3845,13 @@ function showSlabRegionPopup(e, slab, region) {
   hideSvgTooltip();
   currentTarget = { type: 'slabRegion', slab, region };
   const popup = document.getElementById('statusPopup');
-  document.getElementById('popupTitle').textContent = `${slab.id} (${slab.type}) 子区域`;
+  document.getElementById('popupTitle').textContent = `${slab.id} (${slab.type})`;
   popup.querySelectorAll('.status-option').forEach(opt => {
     opt.classList.toggle('selected', opt.dataset.status === region.status);
   });
   const info = document.getElementById('popupInfo');
-  info.style.display = 'block';
-  info.innerHTML = `
-    <div class="popup-info-row"><span class="popup-info-label">板ID:</span><span class="popup-info-value">${slab.id}</span></div>
-    <div class="popup-info-row"><span class="popup-info-label">子区域状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[region.status]}">${STATUS_LABELS[region.status]}</span></div>
-  `;
-  document.getElementById('popupDeleteSegBtn').style.display = 'block';
+  info.style.display = 'none';
+  document.getElementById('popupDeleteSegBtn').style.display = 'none';
   positionPopup(e, popup);
   popup.classList.add('active');
 }
@@ -4929,7 +4940,8 @@ function showSvgTooltip(e, data) {
   } else if (data.type === 'slabRegion') {
     html = `
       <div class="tt-row"><span class="tt-label">板ID:</span><span class="tt-val">${data.slab.id}</span></div>
-      <div class="tt-row"><span class="tt-label">子区域:</span><span class="tt-val">区域 #${data.slab.regions.indexOf(data.region) + 1}</span></div>
+      <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">盖板</span></div>
+      <div class="tt-row"><span class="tt-label">面积:</span><span class="tt-val">${data.slab.area}m\u00B2</span></div>
       <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.region.status]}</span></div>
     `;
   } else if (data.type === 'beamPolygon') {
