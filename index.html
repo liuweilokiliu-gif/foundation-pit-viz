@@ -1335,7 +1335,7 @@ let currentUser = null;
 
 // Auth state listener
 function setupAuthListener() {
-  if (!sb) return;
+  if (!sb) { loadBaseline(); return; }
   try {
     sb.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN') {
@@ -1353,8 +1353,33 @@ function setupAuthListener() {
         currentUser = session.user;
         updateAuthUI();
       }
+      // Now that auth state is resolved, load baseline
+      // (logged-in users will sync from cloud, anonymous from localStorage)
+      loadBaseline();
+      // Also sync pile extended data from cloud for logged-in users
+      if (currentUser && sb) {
+        sb.from('pile_ext_data').select('*').eq('project_id', 'meilin').then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            data.forEach(row => {
+              const pile = piles.find(p => p.id === row.pile_id);
+              if (pile) {
+                pile.pileNo = row.pile_no || '';
+                pile.diameter = row.diameter || pile.diameter;
+                pile.designLength = row.design_length || '';
+                pile.designTopElev = row.design_top_elev || '';
+                pile.designBottomElev = row.design_bottom_elev || '';
+                pile.rockDepth = row.rock_depth || '';
+                pile.rockElev = row.rock_elev || '';
+                pile.actualBottomElev = row.actual_bottom_elev || '';
+                pile.actualLength = row.actual_length || '';
+              }
+            });
+            console.log('[DEBUG] Loaded pile_ext_data from cloud:', data.length, 'rows');
+          }
+        });
+      }
     });
-  } catch (e) { console.warn('Auth listener setup failed:', e); }
+  } catch (e) { console.warn('Auth listener setup failed:', e); loadBaseline(); }
 }
 
 function updateAuthUI() {
@@ -1507,8 +1532,8 @@ function savePileData() {
     };
   });
   localStorage.setItem('pileExtData', JSON.stringify(data));
-  // Sync to Supabase
-  if (sb) {
+  // Sync to Supabase (only for logged-in users)
+  if (sb && currentUser) {
     const rows = Object.entries(data).map(([pileId, ext]) => ({
       project_id: 'meilin',
       pile_id: pileId,
@@ -2725,8 +2750,18 @@ function loadBaseline() {
       localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
     }
   }
-  // Try cloud sync in background (only if no local data exists)
-  if (!cachedSnapshots || cachedSnapshots === '{}') {
+  // Cloud sync: logged-in users always load from cloud; anonymous users only if no local data
+  if (currentUser) {
+    console.log('[DEBUG loadBaseline] User logged in, always loading from cloud...');
+    loadBaselineFromCloud().then(ok => {
+      console.log('[DEBUG loadBaseline] Cloud load result:', ok);
+      if (ok) {
+        const dateInput = document.getElementById('dateInput');
+        if (dateInput) applyDateView(dateInput.value);
+        updateStats();
+      }
+    });
+  } else if (!cachedSnapshots || cachedSnapshots === '{}') {
     console.log('[DEBUG loadBaseline] No local data, loading from cloud...');
     loadBaselineFromCloud().then(ok => {
       console.log('[DEBUG loadBaseline] Cloud load result:', ok);
@@ -2737,7 +2772,7 @@ function loadBaseline() {
       }
     });
   } else {
-    console.log('[DEBUG loadBaseline] Local data exists, skipping cloud load');
+    console.log('[DEBUG loadBaseline] Anonymous user with local data, skipping cloud load');
   }
   console.log('[DEBUG loadBaseline] END. dateSnapshots keys:', Object.keys(dateSnapshots));
 }
@@ -2923,14 +2958,15 @@ function init() {
   updateStats();
   renderHeaderProgress();
   loadPlanStore();
-  loadBaseline();
-  renderPlanPanel();
-  setupZoom();
-  setupEditingEvents();
-  // Initialize Supabase and subscribe to realtime changes
+  // Initialize Supabase and auth BEFORE loading baseline (need currentUser for cloud sync)
   initSupabase();
   setupAuthListener();
   if (sb) subscribeRealtime();
+  // loadBaseline is now called from setupAuthListener after session is resolved
+  // so we don't call it here anymore
+  renderPlanPanel();
+  setupZoom();
+  setupEditingEvents();
 }
 
 // ---- Render 基坑轮廓 ----
