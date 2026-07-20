@@ -1371,8 +1371,8 @@ function setupAuthListener() {
       // Now that auth state is resolved, load baseline
       // (logged-in users will sync from cloud, anonymous from localStorage)
       loadBaseline();
-      // Also sync pile extended data from cloud for logged-in users
-      if (currentUser && sb) {
+      // Also sync pile extended data from cloud for all users
+      if (sb) {
         sb.from('pile_ext_data').select('*').eq('project_id', 'meilin').then(({ data, error }) => {
           if (!error && data && data.length > 0) {
             data.forEach(row => {
@@ -2796,9 +2796,9 @@ function loadBaseline() {
       localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
     }
   }
-  // Cloud sync: logged-in users always load from cloud; anonymous users only if no local data
-  if (currentUser) {
-    console.log('[DEBUG loadBaseline] User logged in, always loading from cloud...');
+  // Cloud sync: always load from cloud (read is public for all users)
+  if (sb) {
+    console.log('[DEBUG loadBaseline] Loading from cloud...');
     loadBaselineFromCloud().then(ok => {
       console.log('[DEBUG loadBaseline] Cloud load result:', ok);
       if (ok) {
@@ -2807,18 +2807,6 @@ function loadBaseline() {
         updateStats();
       }
     });
-  } else if (!cachedSnapshots || cachedSnapshots === '{}') {
-    console.log('[DEBUG loadBaseline] No local data, loading from cloud...');
-    loadBaselineFromCloud().then(ok => {
-      console.log('[DEBUG loadBaseline] Cloud load result:', ok);
-      if (ok) {
-        const dateInput = document.getElementById('dateInput');
-        if (dateInput) applyDateView(dateInput.value);
-        updateStats();
-      }
-    });
-  } else {
-    console.log('[DEBUG loadBaseline] Anonymous user with local data, skipping cloud load');
   }
   console.log('[DEBUG loadBaseline] END. dateSnapshots keys:', Object.keys(dateSnapshots));
 }
