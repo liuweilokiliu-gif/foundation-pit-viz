@@ -3810,8 +3810,41 @@ function showSlabRegionPopup(e, slab, region) {
 }
 
 function positionPopup(e, popup) {
+  // First set position to get natural size
   popup.style.left = e.clientX + 10 + 'px';
   popup.style.top = e.clientY + 10 + 'px';
+  // Wait a frame for layout to compute, then adjust if overflowing
+  requestAnimationFrame(() => {
+    const rect = popup.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margin = 10;
+    let left = e.clientX + 10;
+    let top = e.clientY + 10;
+    // If overflowing right, flip to left of click point
+    if (rect.right > vw - margin) {
+      left = e.clientX - rect.width - margin;
+    }
+    // If still overflowing left, clamp
+    if (left < margin) left = margin;
+    // If overflowing bottom, move up
+    if (rect.bottom > vh - margin) {
+      top = vh - rect.height - margin;
+    }
+    // If still overflowing top, clamp
+    if (top < margin) top = margin;
+    // If panel is taller than viewport, enable scroll
+    if (rect.height > vh - 2 * margin) {
+      top = margin;
+      popup.style.maxHeight = (vh - 2 * margin) + 'px';
+      popup.style.overflowY = 'auto';
+    } else {
+      popup.style.maxHeight = '';
+      popup.style.overflowY = '';
+    }
+    popup.style.left = left + 'px';
+    popup.style.top = top + 'px';
+  });
 }
 
 function setStatus(status) {
