@@ -35,6 +35,20 @@
 
 /* ===== Reset & Base ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+#scaleWrap {
+  width: 1920px;
+  transform-origin: top left;
+}
+
+/* Flash animation for "doing" status */
+@keyframes doing-flash {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 0.3; }
+}
+.doing-flash {
+  animation: doing-pulse 1.5s ease-in-out infinite;
+}
 body {
   font-family: -apple-system, 'Microsoft YaHei', 'PingFang SC', sans-serif;
   background: var(--bg-primary);
@@ -63,9 +77,6 @@ body {
   color: var(--accent-light);
   letter-spacing: 2px;
   white-space: nowrap;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
 }
 .header-controls {
   display: flex;
@@ -1139,12 +1150,6 @@ body {
   transition: border-color 0.2s;
 }
 .pile-input:focus { border-color: var(--accent); }
-.auto-tag {
-  font-size: 9px;
-  color: var(--accent);
-  opacity: 0.7;
-  margin-left: 4px;
-}
 .auto-calc { color: var(--accent); }
 .pile-edit-form { max-height: 380px; overflow-y: auto; }
 .pile-save-btn {
@@ -1178,6 +1183,7 @@ body {
 </style>
 </head>
 <body>
+<div id="scaleWrap">
 
 <!-- ===== HEADER ===== -->
 <header class="header">
@@ -1378,15 +1384,21 @@ function setupAuthListener() {
             data.forEach(row => {
               const pile = piles.find(p => p.id === row.pile_id);
               if (pile) {
-                pile.pileNo = row.pile_no || '';
-                pile.diameter = row.diameter || pile.diameter;
-                pile.designLength = row.design_length || '';
-                pile.designTopElev = row.design_top_elev || '';
-                pile.designBottomElev = row.design_bottom_elev || '';
-                pile.rockDepth = row.rock_depth || '';
-                pile.rockElev = row.rock_elev || '';
-                pile.actualBottomElev = row.actual_bottom_elev || '';
-                pile.actualLength = row.actual_length || '';
+                if (row.pile_no) pile.pileNo = row.pile_no;
+                if (row.diameter) pile.diameter = row.diameter;
+                if (row.design_length) pile.designLength = row.design_length;
+                if (row.design_top_elev) pile.designTopElev = row.design_top_elev;
+                if (row.design_bottom_elev) pile.designBottomElev = row.design_bottom_elev;
+                if (row.rock_depth) pile.rockDepth = row.rock_depth;
+                if (row.rock_elev) pile.rockElev = row.rock_elev;
+                if (row.actual_bottom_elev) pile.actualBottomElev = row.actual_bottom_elev;
+                if (row.actual_length) pile.actualLength = row.actual_length;
+                if (row.start_date) pile.startDate = row.start_date;
+                if (row.end_date) pile.endDate = row.end_date;
+                if (row.ground_elev) pile.groundElev = row.ground_elev;
+                if (row.hole_depth) pile.holeDepth = row.hole_depth;
+                if (row.steel_pipe_length) pile.steelPipeLength = row.steel_pipe_length;
+                if (row.bearing_stratum) pile.bearingStratum = row.bearing_stratum;
               }
             });
             console.log('[DEBUG] Loaded pile_ext_data from cloud:', data.length, 'rows');
@@ -1429,7 +1441,7 @@ async function clearAllData() {
   localStorage.removeItem('pileExtData');
   dateSnapshots = {};
   // Reset all items to baseline status
-  piles.forEach(p => { p.status = 'pending'; p.pileNo = ''; p.designLength = ''; p.designTopElev = ''; p.designBottomElev = ''; p.rockDepth = ''; p.rockElev = ''; p.actualBottomElev = ''; p.actualLength = ''; });
+  piles.forEach(p => { p.status = 'pending'; p.pileNo = ''; p.designLength = ''; p.designTopElev = ''; p.designBottomElev = ''; p.rockDepth = ''; p.rockElev = ''; p.actualBottomElev = ''; p.actualLength = ''; p.startDate = ''; p.endDate = ''; });
   beamPolygons.forEach(bp => { bp.status = 'pending'; if (bp.segments) bp.segments.forEach(s => { s.status = 'pending'; }); });
   crownBeams.forEach(cb => { cb.status = 'pending'; if (cb.segments) cb.segments.forEach(s => { s.status = 'pending'; }); });
   slabs.forEach(slab => { slab.status = 'pending'; if (slab.regions) slab.regions.forEach(r => { r.status = 'pending'; }); });
@@ -1547,22 +1559,30 @@ const PILE_DIAMETER_MAP = {
 function initPileData() {
   const savedData = JSON.parse(localStorage.getItem('pileExtData') || '{}');
   piles.forEach(p => {
-    // Diameter
-    if (p.type === '工程桩') {
-      p.diameter = p.r >= 8 ? 1600 : 1200;
-    } else {
-      p.diameter = PILE_DIAMETER_MAP[p.type] || 0;
+    // Diameter (only set default if not already defined in pile data)
+    if (p.diameter === undefined || p.diameter === null || p.diameter === '') {
+      if (p.type === '工程桩') {
+        p.diameter = p.r >= 8 ? 1600 : 1200;
+      } else {
+        p.diameter = PILE_DIAMETER_MAP[p.type] || 0;
+      }
     }
     // Load saved extended data or initialize defaults
     const ext = savedData[p.id] || {};
-    p.pileNo = ext.pileNo || '';          // 桩编号
-    p.designLength = ext.designLength || ''; // 设计桩长
-    p.designTopElev = ext.designTopElev || ''; // 设计桩顶标高
-    p.designBottomElev = ext.designBottomElev || ''; // 设计桩底标高
-    p.rockDepth = ext.rockDepth || '';     // 入岩深度
-    p.rockElev = ext.rockElev || '';       // 入岩标高
-    p.actualBottomElev = ext.actualBottomElev || ''; // 实际桩底标高
-    p.actualLength = ext.actualLength || ''; // 实际桩长
+    if (ext.pileNo !== undefined && ext.pileNo !== '') p.pileNo = ext.pileNo;
+    if (ext.designLength !== undefined && ext.designLength !== '') p.designLength = ext.designLength;
+    if (ext.designTopElev !== undefined && ext.designTopElev !== '') p.designTopElev = ext.designTopElev;
+    if (ext.designBottomElev !== undefined && ext.designBottomElev !== '') p.designBottomElev = ext.designBottomElev;
+    if (ext.rockDepth !== undefined && ext.rockDepth !== '') p.rockDepth = ext.rockDepth;
+    if (ext.rockElev !== undefined && ext.rockElev !== '') p.rockElev = ext.rockElev;
+    if (ext.actualBottomElev !== undefined && ext.actualBottomElev !== '') p.actualBottomElev = ext.actualBottomElev;
+    if (ext.actualLength !== undefined && ext.actualLength !== '') p.actualLength = ext.actualLength;
+    if (ext.startDate !== undefined && ext.startDate !== '') p.startDate = ext.startDate;
+    if (ext.endDate !== undefined && ext.endDate !== '') p.endDate = ext.endDate;
+    if (ext.groundElev !== undefined && ext.groundElev !== '') p.groundElev = ext.groundElev;
+    if (ext.holeDepth !== undefined && ext.holeDepth !== '') p.holeDepth = ext.holeDepth;
+    if (ext.steelPipeLength !== undefined && ext.steelPipeLength !== '') p.steelPipeLength = ext.steelPipeLength;
+    if (ext.bearingStratum !== undefined && ext.bearingStratum !== '') p.bearingStratum = ext.bearingStratum;
   });
 }
 
@@ -1574,7 +1594,10 @@ function savePileData() {
       pileNo: p.pileNo, designLength: p.designLength, diameter: p.diameter,
       designTopElev: p.designTopElev, designBottomElev: p.designBottomElev,
       rockDepth: p.rockDepth, rockElev: p.rockElev,
-      actualBottomElev: p.actualBottomElev, actualLength: p.actualLength
+      actualBottomElev: p.actualBottomElev, actualLength: p.actualLength,
+      startDate: p.startDate, endDate: p.endDate,
+      groundElev: p.groundElev, holeDepth: p.holeDepth,
+      steelPipeLength: p.steelPipeLength, bearingStratum: p.bearingStratum
     };
   });
   localStorage.setItem('pileExtData', JSON.stringify(data));
@@ -1591,7 +1614,9 @@ function savePileData() {
       rock_depth: ext.rockDepth || null,
       rock_elev: ext.rockElev || null,
       actual_bottom_elev: ext.actualBottomElev || null,
-      actual_length: ext.actualLength || null
+      actual_length: ext.actualLength || null,
+      start_date: ext.startDate || null,
+      end_date: ext.endDate || null
     }));
     sb.from('pile_ext_data').upsert(rows, { onConflict: 'project_id,pile_id' }).then(({error}) => {
       if (error) console.warn('Supabase pile data write error:', error);
@@ -1721,230 +1746,230 @@ function autoCalcPile(pile, field) {
 
 // ---- Real data: Piles ----
 const piles = [
-  { id: 'YP001', type: '咬合桩-荤桩', x: 166.8, y: 267.4, r: 6.6, status: 'pending' },
-  { id: 'YP002', type: '咬合桩-荤桩', x: 167.1, y: 287.1, r: 6.6, status: 'pending' },
-  { id: 'YP003', type: '咬合桩-荤桩', x: 167.4, y: 306.9, r: 6.6, status: 'pending' },
-  { id: 'YP004', type: '咬合桩-荤桩', x: 167.8, y: 326.6, r: 6.6, status: 'pending' },
-  { id: 'YP005', type: '咬合桩-荤桩', x: 168.1, y: 346.4, r: 6.6, status: 'pending' },
-  { id: 'YP006', type: '咬合桩-荤桩', x: 168.4, y: 366.1, r: 6.6, status: 'pending' },
-  { id: 'YP007', type: '咬合桩-荤桩', x: 168.8, y: 385.9, r: 6.6, status: 'pending' },
-  { id: 'YP008', type: '咬合桩-荤桩', x: 169.1, y: 405.7, r: 6.6, status: 'pending' },
-  { id: 'YP009', type: '咬合桩-荤桩', x: 169.5, y: 425.4, r: 6.6, status: 'pending' },
-  { id: 'YP010', type: '咬合桩-荤桩', x: 169.8, y: 445.2, r: 6.6, status: 'pending' },
-  { id: 'YP011', type: '咬合桩-荤桩', x: 170.1, y: 464.9, r: 6.6, status: 'pending' },
-  { id: 'YP012', type: '咬合桩-荤桩', x: 170.5, y: 484.7, r: 6.6, status: 'pending' },
-  { id: 'YP013', type: '咬合桩-荤桩', x: 170.8, y: 504.4, r: 6.6, status: 'pending' },
-  { id: 'YP014', type: '咬合桩-荤桩', x: 171.1, y: 524.2, r: 6.6, status: 'pending' },
-  { id: 'YP015', type: '咬合桩-荤桩', x: 171.5, y: 543.9, r: 6.6, status: 'pending' },
-  { id: 'YP016', type: '咬合桩-荤桩', x: 171.8, y: 563.7, r: 6.6, status: 'pending' },
-  { id: 'YP017', type: '咬合桩-荤桩', x: 172.2, y: 583.4, r: 6.6, status: 'pending' },
-  { id: 'YP018', type: '咬合桩-荤桩', x: 470.2, y: 767.9, r: 6.6, status: 'pending' },
-  { id: 'YP019', type: '咬合桩-荤桩', x: 490.0, y: 767.6, r: 6.6, status: 'pending' },
-  { id: 'YP020', type: '咬合桩-荤桩', x: 509.8, y: 767.3, r: 6.6, status: 'pending' },
-  { id: 'YP021', type: '咬合桩-荤桩', x: 529.5, y: 766.9, r: 6.6, status: 'pending' },
-  { id: 'YP022', type: '咬合桩-荤桩', x: 549.3, y: 766.6, r: 6.6, status: 'pending' },
-  { id: 'YP023', type: '咬合桩-荤桩', x: 569.0, y: 766.2, r: 6.6, status: 'pending' },
-  { id: 'YP024', type: '咬合桩-荤桩', x: 588.8, y: 765.9, r: 6.6, status: 'pending' },
-  { id: 'YP025', type: '咬合桩-荤桩', x: 608.5, y: 765.5, r: 6.6, status: 'pending' },
-  { id: 'YP026', type: '咬合桩-荤桩', x: 628.3, y: 765.2, r: 6.6, status: 'pending' },
-  { id: 'YP027', type: '咬合桩-荤桩', x: 648.0, y: 764.9, r: 6.6, status: 'pending' },
-  { id: 'YP028', type: '咬合桩-荤桩', x: 667.8, y: 764.5, r: 6.6, status: 'pending' },
-  { id: 'YP029', type: '咬合桩-荤桩', x: 687.5, y: 764.2, r: 6.6, status: 'pending' },
-  { id: 'YP030', type: '咬合桩-荤桩', x: 707.3, y: 763.8, r: 6.6, status: 'pending' },
-  { id: 'YP031', type: '咬合桩-荤桩', x: 727.1, y: 763.5, r: 6.6, status: 'pending' },
-  { id: 'YP032', type: '咬合桩-荤桩', x: 746.8, y: 763.1, r: 6.6, status: 'pending' },
-  { id: 'YP033', type: '咬合桩-荤桩', x: 766.6, y: 762.8, r: 6.6, status: 'pending' },
-  { id: 'YP034', type: '咬合桩-荤桩', x: 786.3, y: 762.5, r: 6.6, status: 'pending' },
-  { id: 'YP035', type: '咬合桩-荤桩', x: 806.1, y: 762.1, r: 6.6, status: 'pending' },
-  { id: 'YP036', type: '咬合桩-荤桩', x: 825.8, y: 761.8, r: 6.6, status: 'pending' },
-  { id: 'YP037', type: '咬合桩-荤桩', x: 845.6, y: 761.4, r: 6.6, status: 'pending' },
-  { id: 'YP038', type: '咬合桩-荤桩', x: 865.3, y: 761.1, r: 6.6, status: 'pending' },
-  { id: 'YP039', type: '咬合桩-荤桩', x: 885.1, y: 760.8, r: 6.6, status: 'pending' },
-  { id: 'YP040', type: '咬合桩-荤桩', x: 904.8, y: 760.4, r: 6.6, status: 'pending' },
-  { id: 'YP041', type: '咬合桩-荤桩', x: 924.6, y: 760.1, r: 6.6, status: 'pending' },
-  { id: 'YP042', type: '咬合桩-荤桩', x: 944.3, y: 759.7, r: 6.6, status: 'pending' },
-  { id: 'YP043', type: '咬合桩-荤桩', x: 964.1, y: 759.4, r: 6.6, status: 'pending' },
-  { id: 'YP044', type: '咬合桩-荤桩', x: 983.9, y: 759.0, r: 6.6, status: 'pending' },
-  { id: 'YP045', type: '咬合桩-荤桩', x: 1003.6, y: 758.7, r: 6.6, status: 'pending' },
-  { id: 'YP046', type: '咬合桩-荤桩', x: 1023.4, y: 758.4, r: 6.6, status: 'pending' },
-  { id: 'YP047', type: '咬合桩-荤桩', x: 1043.1, y: 758.0, r: 6.6, status: 'pending' },
-  { id: 'YP048', type: '咬合桩-荤桩', x: 1062.9, y: 757.7, r: 6.6, status: 'pending' },
-  { id: 'YP049', type: '咬合桩-荤桩', x: 1082.6, y: 757.3, r: 6.6, status: 'pending' },
-  { id: 'YP050', type: '咬合桩-荤桩', x: 1102.4, y: 757.0, r: 6.6, status: 'pending' },
-  { id: 'YP051', type: '咬合桩-荤桩', x: 1122.1, y: 756.6, r: 6.6, status: 'pending' },
-  { id: 'YP052', type: '咬合桩-荤桩', x: 1141.9, y: 756.3, r: 6.6, status: 'pending' },
-  { id: 'YP053', type: '咬合桩-荤桩', x: 1161.6, y: 756.0, r: 6.6, status: 'pending' },
-  { id: 'YP054', type: '咬合桩-荤桩', x: 1181.4, y: 755.6, r: 6.6, status: 'pending' },
-  { id: 'YP055', type: '咬合桩-荤桩', x: 1201.2, y: 755.3, r: 6.6, status: 'pending' },
-  { id: 'YP056', type: '咬合桩-荤桩', x: 1220.9, y: 754.9, r: 6.6, status: 'pending' },
-  { id: 'YP057', type: '咬合桩-荤桩', x: 1240.7, y: 754.6, r: 6.6, status: 'pending' },
-  { id: 'YP058', type: '咬合桩-荤桩', x: 1260.4, y: 754.3, r: 6.6, status: 'pending' },
-  { id: 'YP059', type: '咬合桩-荤桩', x: 1280.2, y: 753.9, r: 6.6, status: 'pending' },
-  { id: 'YP060', type: '咬合桩-荤桩', x: 1280.8, y: 736.4, r: 6.6, status: 'pending' },
-  { id: 'YP061', type: '咬合桩-荤桩', x: 1281.6, y: 716.7, r: 6.6, status: 'pending' },
-  { id: 'YP062', type: '咬合桩-荤桩', x: 1282.3, y: 696.9, r: 6.6, status: 'pending' },
-  { id: 'YP063', type: '咬合桩-荤桩', x: 1283.0, y: 677.2, r: 6.6, status: 'pending' },
-  { id: 'YP064', type: '咬合桩-荤桩', x: 1283.8, y: 657.4, r: 6.6, status: 'pending' },
-  { id: 'YP065', type: '咬合桩-荤桩', x: 1284.5, y: 637.7, r: 6.6, status: 'pending' },
-  { id: 'YP066', type: '咬合桩-荤桩', x: 1285.3, y: 618.0, r: 6.6, status: 'pending' },
-  { id: 'YP067', type: '咬合桩-荤桩', x: 1286.0, y: 598.2, r: 6.6, status: 'pending' },
-  { id: 'YP068', type: '咬合桩-荤桩', x: 1286.7, y: 578.5, r: 6.6, status: 'pending' },
-  { id: 'YP069', type: '咬合桩-荤桩', x: 1287.5, y: 558.7, r: 6.6, status: 'pending' },
-  { id: 'YP070', type: '咬合桩-荤桩', x: 1288.2, y: 539.0, r: 6.6, status: 'pending' },
-  { id: 'YP071', type: '咬合桩-荤桩', x: 1289.0, y: 519.2, r: 6.6, status: 'pending' },
-  { id: 'YP072', type: '咬合桩-荤桩', x: 1289.7, y: 499.5, r: 6.6, status: 'pending' },
-  { id: 'YP073', type: '咬合桩-荤桩', x: 1290.4, y: 479.8, r: 6.6, status: 'pending' },
-  { id: 'YP074', type: '咬合桩-荤桩', x: 1291.2, y: 460.0, r: 6.6, status: 'pending' },
-  { id: 'YP075', type: '咬合桩-荤桩', x: 1291.9, y: 440.3, r: 6.6, status: 'pending' },
-  { id: 'YP076', type: '咬合桩-荤桩', x: 1292.7, y: 420.5, r: 6.6, status: 'pending' },
-  { id: 'YP077', type: '咬合桩-荤桩', x: 1293.4, y: 400.8, r: 6.6, status: 'pending' },
-  { id: 'YP078', type: '咬合桩-荤桩', x: 1294.1, y: 381.0, r: 6.6, status: 'pending' },
-  { id: 'YP079', type: '咬合桩-荤桩', x: 1294.9, y: 361.3, r: 6.6, status: 'pending' },
-  { id: 'YP080', type: '咬合桩-荤桩', x: 1295.6, y: 341.5, r: 6.6, status: 'pending' },
-  { id: 'YP081', type: '咬合桩-荤桩', x: 1296.4, y: 321.8, r: 6.6, status: 'pending' },
-  { id: 'YP082', type: '咬合桩-荤桩', x: 1297.1, y: 302.1, r: 6.6, status: 'pending' },
-  { id: 'YP083', type: '咬合桩-荤桩', x: 1297.8, y: 282.3, r: 6.6, status: 'pending' },
-  { id: 'YP084', type: '咬合桩-荤桩', x: 1298.6, y: 262.6, r: 6.6, status: 'pending' },
-  { id: 'YP085', type: '咬合桩-荤桩', x: 1299.3, y: 242.8, r: 6.6, status: 'pending' },
-  { id: 'YP086', type: '咬合桩-荤桩', x: 1300.1, y: 223.1, r: 6.6, status: 'pending' },
-  { id: 'YP087', type: '咬合桩-荤桩', x: 1300.8, y: 203.3, r: 6.6, status: 'pending' },
-  { id: 'YP088', type: '咬合桩-荤桩', x: 1287.3, y: 196.0, r: 6.6, status: 'pending' },
-  { id: 'YP089', type: '咬合桩-荤桩', x: 1269.8, y: 196.0, r: 6.6, status: 'pending' },
-  { id: 'YP090', type: '咬合桩-荤桩', x: 1252.2, y: 195.9, r: 6.6, status: 'pending' },
-  { id: 'YP091', type: '咬合桩-荤桩', x: 1234.6, y: 195.8, r: 6.6, status: 'pending' },
-  { id: 'YP092', type: '咬合桩-荤桩', x: 1217.1, y: 195.8, r: 6.6, status: 'pending' },
-  { id: 'YP093', type: '咬合桩-荤桩', x: 1199.5, y: 195.7, r: 6.6, status: 'pending' },
-  { id: 'YP094', type: '咬合桩-荤桩', x: 1181.9, y: 195.6, r: 6.6, status: 'pending' },
-  { id: 'YP095', type: '咬合桩-荤桩', x: 1164.4, y: 195.6, r: 6.6, status: 'pending' },
-  { id: 'YP096', type: '咬合桩-荤桩', x: 1146.8, y: 195.5, r: 6.6, status: 'pending' },
-  { id: 'YP097', type: '咬合桩-荤桩', x: 1129.3, y: 195.4, r: 6.6, status: 'pending' },
-  { id: 'YP098', type: '咬合桩-荤桩', x: 1111.7, y: 195.4, r: 6.6, status: 'pending' },
-  { id: 'YP099', type: '咬合桩-荤桩', x: 1094.1, y: 195.3, r: 6.6, status: 'pending' },
-  { id: 'YP100', type: '咬合桩-荤桩', x: 1076.6, y: 195.2, r: 6.6, status: 'pending' },
-  { id: 'YP101', type: '咬合桩-荤桩', x: 1059.0, y: 195.2, r: 6.6, status: 'pending' },
-  { id: 'YP102', type: '咬合桩-荤桩', x: 1041.4, y: 195.1, r: 6.6, status: 'pending' },
-  { id: 'YP103', type: '咬合桩-荤桩', x: 1023.9, y: 195.0, r: 6.6, status: 'pending' },
-  { id: 'YP104', type: '咬合桩-荤桩', x: 1006.3, y: 195.0, r: 6.6, status: 'pending' },
-  { id: 'YP105', type: '咬合桩-荤桩', x: 988.8, y: 194.9, r: 6.6, status: 'pending' },
-  { id: 'YP106', type: '咬合桩-荤桩', x: 971.2, y: 194.8, r: 6.6, status: 'pending' },
-  { id: 'YP107', type: '咬合桩-荤桩', x: 953.6, y: 194.7, r: 6.6, status: 'pending' },
-  { id: 'YP108', type: '咬合桩-荤桩', x: 936.1, y: 194.7, r: 6.6, status: 'pending' },
-  { id: 'YP109', type: '咬合桩-荤桩', x: 918.5, y: 194.6, r: 6.6, status: 'pending' },
-  { id: 'YP110', type: '咬合桩-荤桩', x: 901.0, y: 194.5, r: 6.6, status: 'pending' },
-  { id: 'YP111', type: '咬合桩-荤桩', x: 883.4, y: 194.5, r: 6.6, status: 'pending' },
-  { id: 'YP112', type: '咬合桩-荤桩', x: 865.8, y: 194.4, r: 6.6, status: 'pending' },
-  { id: 'YP113', type: '咬合桩-荤桩', x: 848.3, y: 194.3, r: 6.6, status: 'pending' },
-  { id: 'YP114', type: '咬合桩-荤桩', x: 830.7, y: 194.3, r: 6.6, status: 'pending' },
-  { id: 'YP115', type: '咬合桩-荤桩', x: 813.1, y: 194.2, r: 6.6, status: 'pending' },
-  { id: 'YP116', type: '咬合桩-荤桩', x: 795.6, y: 194.1, r: 6.6, status: 'pending' },
-  { id: 'YP117', type: '咬合桩-荤桩', x: 778.0, y: 194.1, r: 6.6, status: 'pending' },
-  { id: 'YP118', type: '咬合桩-荤桩', x: 760.5, y: 194.0, r: 6.6, status: 'pending' },
-  { id: 'YP119', type: '咬合桩-荤桩', x: 742.9, y: 193.9, r: 6.6, status: 'pending' },
-  { id: 'YP120', type: '咬合桩-荤桩', x: 725.4, y: 194.2, r: 6.6, status: 'pending' },
-  { id: 'YP121', type: '咬合桩-荤桩', x: 708.3, y: 198.3, r: 6.6, status: 'pending' },
-  { id: 'YP122', type: '咬合桩-荤桩', x: 691.5, y: 203.4, r: 6.6, status: 'pending' },
-  { id: 'YP123', type: '咬合桩-荤桩', x: 675.0, y: 209.5, r: 6.6, status: 'pending' },
-  { id: 'YP124', type: '咬合桩-荤桩', x: 658.9, y: 216.5, r: 6.6, status: 'pending' },
-  { id: 'YP125', type: '咬合桩-荤桩', x: 643.3, y: 224.5, r: 6.6, status: 'pending' },
-  { id: 'YP126', type: '咬合桩-荤桩', x: 628.1, y: 233.4, r: 6.6, status: 'pending' },
-  { id: 'YP127', type: '咬合桩-荤桩', x: 612.1, y: 239.6, r: 6.6, status: 'pending' },
-  { id: 'YP128', type: '咬合桩-荤桩', x: 594.5, y: 240.1, r: 6.6, status: 'pending' },
-  { id: 'YP129', type: '咬合桩-荤桩', x: 577.0, y: 240.7, r: 6.6, status: 'pending' },
-  { id: 'YP130', type: '咬合桩-荤桩', x: 559.4, y: 241.2, r: 6.6, status: 'pending' },
-  { id: 'YP131', type: '咬合桩-荤桩', x: 541.9, y: 241.7, r: 6.6, status: 'pending' },
-  { id: 'YP132', type: '咬合桩-荤桩', x: 524.3, y: 242.2, r: 6.6, status: 'pending' },
-  { id: 'YP133', type: '咬合桩-荤桩', x: 506.8, y: 242.7, r: 6.6, status: 'pending' },
-  { id: 'YP134', type: '咬合桩-荤桩', x: 489.2, y: 243.3, r: 6.6, status: 'pending' },
-  { id: 'YP135', type: '咬合桩-荤桩', x: 471.7, y: 243.8, r: 6.6, status: 'pending' },
-  { id: 'YP136', type: '咬合桩-荤桩', x: 454.1, y: 244.3, r: 6.6, status: 'pending' },
-  { id: 'YP137', type: '咬合桩-荤桩', x: 436.6, y: 244.8, r: 6.6, status: 'pending' },
-  { id: 'YP138', type: '咬合桩-荤桩', x: 419.0, y: 245.3, r: 6.6, status: 'pending' },
-  { id: 'YP139', type: '咬合桩-荤桩', x: 401.4, y: 245.8, r: 6.6, status: 'pending' },
-  { id: 'YP140', type: '咬合桩-荤桩', x: 383.9, y: 246.4, r: 6.6, status: 'pending' },
-  { id: 'YP141', type: '咬合桩-荤桩', x: 366.3, y: 246.9, r: 6.6, status: 'pending' },
-  { id: 'YP142', type: '咬合桩-荤桩', x: 348.8, y: 247.4, r: 6.6, status: 'pending' },
-  { id: 'YP143', type: '咬合桩-荤桩', x: 331.2, y: 247.9, r: 6.6, status: 'pending' },
-  { id: 'YP144', type: '咬合桩-荤桩', x: 313.7, y: 248.4, r: 6.6, status: 'pending' },
-  { id: 'YP145', type: '咬合桩-荤桩', x: 296.1, y: 248.9, r: 6.6, status: 'pending' },
-  { id: 'YP146', type: '咬合桩-荤桩', x: 278.6, y: 249.5, r: 6.6, status: 'pending' },
-  { id: 'YP147', type: '咬合桩-荤桩', x: 261.0, y: 250.0, r: 6.6, status: 'pending' },
-  { id: 'YP148', type: '咬合桩-荤桩', x: 243.5, y: 250.5, r: 6.6, status: 'pending' },
-  { id: 'YP149', type: '咬合桩-荤桩', x: 225.9, y: 251.0, r: 6.6, status: 'pending' },
-  { id: 'YP150', type: '咬合桩-荤桩', x: 208.3, y: 251.5, r: 6.6, status: 'pending' },
-  { id: 'YP151', type: '咬合桩-荤桩', x: 190.8, y: 252.0, r: 6.6, status: 'pending' },
-  { id: 'YP152', type: '咬合桩-荤桩', x: 173.2, y: 252.6, r: 6.6, status: 'pending' },
-  { id: 'WX001', type: '微型桩', x: 167.4, y: 592.8, r: 2.0, status: 'pending' },
-  { id: 'WX002', type: '微型桩', x: 167.5, y: 599.3, r: 2.0, status: 'pending' },
-  { id: 'WX003', type: '微型桩', x: 167.6, y: 605.9, r: 2.0, status: 'pending' },
-  { id: 'WX004', type: '微型桩', x: 167.7, y: 612.5, r: 2.0, status: 'pending' },
-  { id: 'WX005', type: '微型桩', x: 167.8, y: 619.1, r: 2.0, status: 'pending' },
-  { id: 'WX006', type: '微型桩', x: 167.9, y: 625.7, r: 2.0, status: 'pending' },
-  { id: 'WX007', type: '微型桩', x: 168.0, y: 632.3, r: 2.0, status: 'pending' },
-  { id: 'WX008', type: '微型桩', x: 168.2, y: 638.9, r: 2.0, status: 'pending' },
-  { id: 'WX009', type: '微型桩', x: 168.3, y: 645.4, r: 2.0, status: 'pending' },
-  { id: 'WX010', type: '微型桩', x: 168.4, y: 652.0, r: 2.0, status: 'pending' },
-  { id: 'WX011', type: '微型桩', x: 168.5, y: 658.6, r: 2.0, status: 'pending' },
-  { id: 'WX012', type: '微型桩', x: 168.6, y: 665.2, r: 2.0, status: 'pending' },
-  { id: 'WX013', type: '微型桩', x: 168.7, y: 671.8, r: 2.0, status: 'pending' },
-  { id: 'WX014', type: '微型桩', x: 168.8, y: 678.4, r: 2.0, status: 'pending' },
-  { id: 'WX015', type: '微型桩', x: 168.9, y: 684.9, r: 2.0, status: 'pending' },
-  { id: 'WX016', type: '微型桩', x: 169.1, y: 691.5, r: 2.0, status: 'pending' },
-  { id: 'WX017', type: '微型桩', x: 169.2, y: 698.1, r: 2.0, status: 'pending' },
-  { id: 'WX018', type: '微型桩', x: 169.3, y: 704.7, r: 2.0, status: 'pending' },
-  { id: 'WX019', type: '微型桩', x: 169.4, y: 711.3, r: 2.0, status: 'pending' },
-  { id: 'WX020', type: '微型桩', x: 169.5, y: 717.9, r: 2.0, status: 'pending' },
-  { id: 'WX021', type: '微型桩', x: 169.6, y: 724.5, r: 2.0, status: 'pending' },
-  { id: 'WX022', type: '微型桩', x: 169.7, y: 731.0, r: 2.0, status: 'pending' },
-  { id: 'WX023', type: '微型桩', x: 169.8, y: 737.6, r: 2.0, status: 'pending' },
-  { id: 'WX024', type: '微型桩', x: 170.0, y: 744.2, r: 2.0, status: 'pending' },
-  { id: 'WX025', type: '微型桩', x: 170.1, y: 750.8, r: 2.0, status: 'pending' },
-  { id: 'WX026', type: '微型桩', x: 170.2, y: 757.4, r: 2.0, status: 'pending' },
-  { id: 'WX027', type: '微型桩', x: 170.3, y: 764.0, r: 2.0, status: 'pending' },
-  { id: 'WX028', type: '微型桩', x: 172.6, y: 767.7, r: 2.0, status: 'pending' },
-  { id: 'WX029', type: '微型桩', x: 179.2, y: 767.6, r: 2.0, status: 'pending' },
-  { id: 'WX030', type: '微型桩', x: 185.8, y: 767.5, r: 2.0, status: 'pending' },
-  { id: 'WX031', type: '微型桩', x: 192.4, y: 767.4, r: 2.0, status: 'pending' },
-  { id: 'WX032', type: '微型桩', x: 199.0, y: 767.3, r: 2.0, status: 'pending' },
-  { id: 'WX033', type: '微型桩', x: 205.6, y: 767.1, r: 2.0, status: 'pending' },
-  { id: 'WX034', type: '微型桩', x: 212.1, y: 767.0, r: 2.0, status: 'pending' },
-  { id: 'WX035', type: '微型桩', x: 218.7, y: 766.9, r: 2.0, status: 'pending' },
-  { id: 'WX036', type: '微型桩', x: 225.3, y: 766.8, r: 2.0, status: 'pending' },
-  { id: 'WX037', type: '微型桩', x: 231.9, y: 766.7, r: 2.0, status: 'pending' },
-  { id: 'WX038', type: '微型桩', x: 238.5, y: 766.6, r: 2.0, status: 'pending' },
-  { id: 'WX039', type: '微型桩', x: 245.1, y: 766.5, r: 2.0, status: 'pending' },
-  { id: 'WX040', type: '微型桩', x: 251.7, y: 766.3, r: 2.0, status: 'pending' },
-  { id: 'WX041', type: '微型桩', x: 258.2, y: 766.2, r: 2.0, status: 'pending' },
-  { id: 'WX042', type: '微型桩', x: 264.8, y: 766.1, r: 2.0, status: 'pending' },
-  { id: 'WX043', type: '微型桩', x: 271.4, y: 766.0, r: 2.0, status: 'pending' },
-  { id: 'WX044', type: '微型桩', x: 278.0, y: 765.9, r: 2.0, status: 'pending' },
-  { id: 'WX045', type: '微型桩', x: 284.6, y: 765.8, r: 2.0, status: 'pending' },
-  { id: 'WX046', type: '微型桩', x: 291.2, y: 765.7, r: 2.0, status: 'pending' },
-  { id: 'WX047', type: '微型桩', x: 297.7, y: 765.5, r: 2.0, status: 'pending' },
-  { id: 'WX048', type: '微型桩', x: 304.3, y: 765.4, r: 2.0, status: 'pending' },
-  { id: 'WX049', type: '微型桩', x: 310.9, y: 765.3, r: 2.0, status: 'pending' },
-  { id: 'WX050', type: '微型桩', x: 317.5, y: 765.2, r: 2.0, status: 'pending' },
-  { id: 'WX051', type: '微型桩', x: 324.1, y: 765.1, r: 2.0, status: 'pending' },
-  { id: 'WX052', type: '微型桩', x: 330.7, y: 765.0, r: 2.0, status: 'pending' },
-  { id: 'WX053', type: '微型桩', x: 337.3, y: 764.9, r: 2.0, status: 'pending' },
-  { id: 'WX054', type: '微型桩', x: 343.8, y: 764.7, r: 2.0, status: 'pending' },
-  { id: 'WX055', type: '微型桩', x: 350.4, y: 764.6, r: 2.0, status: 'pending' },
-  { id: 'WX056', type: '微型桩', x: 357.0, y: 764.5, r: 2.0, status: 'pending' },
-  { id: 'WX057', type: '微型桩', x: 363.6, y: 764.4, r: 2.0, status: 'pending' },
-  { id: 'WX058', type: '微型桩', x: 370.2, y: 764.3, r: 2.0, status: 'pending' },
-  { id: 'WX059', type: '微型桩', x: 376.8, y: 764.2, r: 2.0, status: 'pending' },
-  { id: 'WX060', type: '微型桩', x: 383.3, y: 764.1, r: 2.0, status: 'pending' },
-  { id: 'WX061', type: '微型桩', x: 389.9, y: 764.0, r: 2.0, status: 'pending' },
-  { id: 'WX062', type: '微型桩', x: 396.5, y: 763.8, r: 2.0, status: 'pending' },
-  { id: 'WX063', type: '微型桩', x: 403.1, y: 763.7, r: 2.0, status: 'pending' },
-  { id: 'WX064', type: '微型桩', x: 409.7, y: 763.6, r: 2.0, status: 'pending' },
-  { id: 'WX065', type: '微型桩', x: 416.3, y: 763.5, r: 2.0, status: 'pending' },
-  { id: 'WX066', type: '微型桩', x: 422.9, y: 763.4, r: 2.0, status: 'pending' },
-  { id: 'WX067', type: '微型桩', x: 429.4, y: 763.3, r: 2.0, status: 'pending' },
-  { id: 'WX068', type: '微型桩', x: 436.0, y: 763.2, r: 2.0, status: 'pending' },
-  { id: 'WX069', type: '微型桩', x: 442.6, y: 763.0, r: 2.0, status: 'pending' },
-  { id: 'WX070', type: '微型桩', x: 449.2, y: 762.9, r: 2.0, status: 'pending' },
-  { id: 'WX071', type: '微型桩', x: 455.8, y: 762.8, r: 2.0, status: 'pending' },
-  { id: 'WX072', type: '微型桩', x: 462.4, y: 762.7, r: 2.0, status: 'pending' },
+  { id: 'YP001', type: '咬合桩-荤桩', workNo: 'A136', x: 166.8, y: 267.4, r: 6.6, status: 'pending' },
+  { id: 'YP002', type: '咬合桩-荤桩', workNo: 'A137', x: 167.1, y: 287.1, r: 6.6, status: 'pending' },
+  { id: 'YP003', type: '咬合桩-荤桩', workNo: 'A138', x: 167.4, y: 306.9, r: 6.6, status: 'pending' },
+  { id: 'YP004', type: '咬合桩-荤桩', workNo: 'A139', x: 167.8, y: 326.6, r: 6.6, status: 'pending' },
+  { id: 'YP005', type: '咬合桩-荤桩', workNo: 'A140', x: 168.1, y: 346.4, r: 6.6, status: 'pending' },
+  { id: 'YP006', type: '咬合桩-荤桩', workNo: 'A141', x: 168.4, y: 366.1, r: 6.6, status: 'pending' },
+  { id: 'YP007', type: '咬合桩-荤桩', workNo: 'A142', x: 168.8, y: 385.9, r: 6.6, status: 'pending' },
+  { id: 'YP008', type: '咬合桩-荤桩', workNo: 'A143', x: 169.1, y: 405.7, r: 6.6, status: 'pending' },
+  { id: 'YP009', type: '咬合桩-荤桩', workNo: 'A144', x: 169.5, y: 425.4, r: 6.6, status: 'pending' },
+  { id: 'YP010', type: '咬合桩-荤桩', workNo: 'A145', x: 169.8, y: 445.2, r: 6.6, status: 'pending' },
+  { id: 'YP011', type: '咬合桩-荤桩', workNo: 'A146', x: 170.1, y: 464.9, r: 6.6, status: 'pending' },
+  { id: 'YP012', type: '咬合桩-荤桩', workNo: 'A147', x: 170.5, y: 484.7, r: 6.6, status: 'pending' },
+  { id: 'YP013', type: '咬合桩-荤桩', workNo: 'A148', x: 170.8, y: 504.4, r: 6.6, status: 'pending' },
+  { id: 'YP014', type: '咬合桩-荤桩', workNo: 'A149', x: 171.1, y: 524.2, r: 6.6, status: 'pending' },
+  { id: 'YP015', type: '咬合桩-荤桩', workNo: 'A150', x: 171.5, y: 543.9, r: 6.6, status: 'pending' },
+  { id: 'YP016', type: '咬合桩-荤桩', workNo: 'A151', x: 171.8, y: 563.7, r: 6.6, status: 'pending' },
+  { id: 'YP017', type: '咬合桩-荤桩', workNo: 'A152', x: 172.2, y: 583.4, r: 6.6, status: 'pending' },
+  { id: 'YP018', type: '咬合桩-荤桩', workNo: 'A1', x: 470.2, y: 767.9, r: 6.6, startDate: '2026-07-10', endDate: '2026-07-16', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.53', rockDepth: '9.77', rockElev: '25.18', actualLength: '10.39', actualBottomElev: '15.41', status: 'done' },
+  { id: 'YP019', type: '咬合桩-荤桩', workNo: 'A2', x: 490.0, y: 767.6, r: 6.6, status: 'pending' },
+  { id: 'YP020', type: '咬合桩-荤桩', workNo: 'A3', x: 509.8, y: 767.3, r: 6.6, startDate: '2026-07-16', endDate: '2026-07-20', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.34', rockDepth: '9.02', rockElev: '24.62', actualLength: '10.2', actualBottomElev: '15.6', status: 'done' },
+  { id: 'YP021', type: '咬合桩-荤桩', workNo: 'A4', x: 529.5, y: 766.9, r: 6.6, status: 'pending' },
+  { id: 'YP022', type: '咬合桩-荤桩', workNo: 'A5', x: 549.3, y: 766.6, r: 6.6, status: 'pending' },
+  { id: 'YP023', type: '咬合桩-荤桩', workNo: 'A6', x: 569.0, y: 766.2, r: 6.6, status: 'pending' },
+  { id: 'YP024', type: '咬合桩-荤桩', workNo: 'A7', x: 588.8, y: 765.9, r: 6.6, status: 'pending' },
+  { id: 'YP025', type: '咬合桩-荤桩', workNo: 'A8', x: 608.5, y: 765.5, r: 6.6, status: 'pending' },
+  { id: 'YP026', type: '咬合桩-荤桩', workNo: 'A9', x: 628.3, y: 765.2, r: 6.6, status: 'pending' },
+  { id: 'YP027', type: '咬合桩-荤桩', workNo: 'A10', x: 648.0, y: 764.9, r: 6.6, status: 'pending' },
+  { id: 'YP028', type: '咬合桩-荤桩', workNo: 'A11', x: 667.8, y: 764.5, r: 6.6, status: 'pending' },
+  { id: 'YP029', type: '咬合桩-荤桩', workNo: 'A12', x: 687.5, y: 764.2, r: 6.6, startDate: '2026-06-29', endDate: '2026-06-30', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.3', rockDepth: '3', rockElev: '18.64', actualLength: '10.16', actualBottomElev: '15.64', status: 'done' },
+  { id: 'YP030', type: '咬合桩-荤桩', workNo: 'A13', x: 707.3, y: 763.8, r: 6.6, status: 'pending' },
+  { id: 'YP031', type: '咬合桩-荤桩', workNo: 'A14', x: 727.1, y: 763.5, r: 6.6, status: 'pending' },
+  { id: 'YP032', type: '咬合桩-荤桩', workNo: 'A15', x: 746.8, y: 763.1, r: 6.6, startDate: '2026-06-28', endDate: '2026-06-28', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '13.6', rockDepth: '3.07', rockElev: '16.41', actualLength: '12.46', actualBottomElev: '13.34', status: 'done' },
+  { id: 'YP033', type: '咬合桩-荤桩', workNo: 'A16', x: 766.6, y: 762.8, r: 6.6, startDate: '2026-07-03', endDate: '2026-07-05', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '11.8', rockDepth: '3.35', rockElev: '18.49', actualLength: '10.66', actualBottomElev: '15.14', status: 'done' },
+  { id: 'YP034', type: '咬合桩-荤桩', workNo: 'A17', x: 786.3, y: 762.5, r: 6.6, status: 'pending' },
+  { id: 'YP035', type: '咬合桩-荤桩', workNo: 'A18', x: 806.1, y: 762.1, r: 6.6, status: 'pending' },
+  { id: 'YP036', type: '咬合桩-荤桩', workNo: 'A19', x: 825.8, y: 761.8, r: 6.6, status: 'pending' },
+  { id: 'YP037', type: '咬合桩-荤桩', workNo: 'A20', x: 845.6, y: 761.4, r: 6.6, status: 'pending' },
+  { id: 'YP038', type: '咬合桩-荤桩', workNo: 'A21', x: 865.3, y: 761.1, r: 6.6, status: 'pending' },
+  { id: 'YP039', type: '咬合桩-荤桩', workNo: 'A22', x: 885.1, y: 760.8, r: 6.6, status: 'pending' },
+  { id: 'YP040', type: '咬合桩-荤桩', workNo: 'A23', x: 904.8, y: 760.4, r: 6.6, status: 'pending' },
+  { id: 'YP041', type: '咬合桩-荤桩', workNo: 'A24', x: 924.6, y: 760.1, r: 6.6, status: 'pending' },
+  { id: 'YP042', type: '咬合桩-荤桩', workNo: 'A25', x: 944.3, y: 759.7, r: 6.6, status: 'pending' },
+  { id: 'YP043', type: '咬合桩-荤桩', workNo: 'A26', x: 964.1, y: 759.4, r: 6.6, status: 'pending' },
+  { id: 'YP044', type: '咬合桩-荤桩', workNo: 'A27', x: 983.9, y: 759.0, r: 6.6, status: 'pending' },
+  { id: 'YP045', type: '咬合桩-荤桩', workNo: 'A28', x: 1003.6, y: 758.7, r: 6.6, status: 'pending' },
+  { id: 'YP046', type: '咬合桩-荤桩', workNo: 'A29', x: 1023.4, y: 758.4, r: 6.6, status: 'pending' },
+  { id: 'YP047', type: '咬合桩-荤桩', workNo: 'A30', x: 1043.1, y: 758.0, r: 6.6, status: 'pending' },
+  { id: 'YP048', type: '咬合桩-荤桩', workNo: 'A31', x: 1062.9, y: 757.7, r: 6.6, status: 'pending' },
+  { id: 'YP049', type: '咬合桩-荤桩', workNo: 'A32', x: 1082.6, y: 757.3, r: 6.6, status: 'pending' },
+  { id: 'YP050', type: '咬合桩-荤桩', workNo: 'A33', x: 1102.4, y: 757.0, r: 6.6, status: 'pending' },
+  { id: 'YP051', type: '咬合桩-荤桩', workNo: 'A34', x: 1122.1, y: 756.6, r: 6.6, status: 'pending' },
+  { id: 'YP052', type: '咬合桩-荤桩', workNo: 'A35', x: 1141.9, y: 756.3, r: 6.6, status: 'pending' },
+  { id: 'YP053', type: '咬合桩-荤桩', workNo: 'A36', x: 1161.6, y: 756.0, r: 6.6, status: 'pending' },
+  { id: 'YP054', type: '咬合桩-荤桩', workNo: 'A37', x: 1181.4, y: 755.6, r: 6.6, status: 'pending' },
+  { id: 'YP055', type: '咬合桩-荤桩', workNo: 'A38', x: 1201.2, y: 755.3, r: 6.6, status: 'pending' },
+  { id: 'YP056', type: '咬合桩-荤桩', workNo: 'A39', x: 1220.9, y: 754.9, r: 6.6, status: 'pending' },
+  { id: 'YP057', type: '咬合桩-荤桩', workNo: 'A40', x: 1240.7, y: 754.6, r: 6.6, status: 'pending' },
+  { id: 'YP058', type: '咬合桩-荤桩', workNo: 'A41', x: 1260.4, y: 754.3, r: 6.6, status: 'pending' },
+  { id: 'YP059', type: '咬合桩-荤桩', workNo: 'A42', x: 1280.2, y: 753.9, r: 6.6, status: 'pending' },
+  { id: 'YP060', type: '咬合桩-荤桩', workNo: 'A43', x: 1280.8, y: 736.4, r: 6.6, status: 'pending' },
+  { id: 'YP061', type: '咬合桩-荤桩', workNo: 'A44', x: 1281.6, y: 716.7, r: 6.6, status: 'pending' },
+  { id: 'YP062', type: '咬合桩-荤桩', workNo: 'A45', x: 1282.3, y: 696.9, r: 6.6, status: 'pending' },
+  { id: 'YP063', type: '咬合桩-荤桩', workNo: 'A46', x: 1283.0, y: 677.2, r: 6.6, status: 'pending' },
+  { id: 'YP064', type: '咬合桩-荤桩', workNo: 'A47', x: 1283.8, y: 657.4, r: 6.6, status: 'pending' },
+  { id: 'YP065', type: '咬合桩-荤桩', workNo: 'A48', x: 1284.5, y: 637.7, r: 6.6, status: 'pending' },
+  { id: 'YP066', type: '咬合桩-荤桩', workNo: 'A49', x: 1285.3, y: 618.0, r: 6.6, status: 'pending' },
+  { id: 'YP067', type: '咬合桩-荤桩', workNo: 'A50', x: 1286.0, y: 598.2, r: 6.6, status: 'pending' },
+  { id: 'YP068', type: '咬合桩-荤桩', workNo: 'A51', x: 1286.7, y: 578.5, r: 6.6, status: 'pending' },
+  { id: 'YP069', type: '咬合桩-荤桩', workNo: 'A52', x: 1287.5, y: 558.7, r: 6.6, status: 'pending' },
+  { id: 'YP070', type: '咬合桩-荤桩', workNo: 'A53', x: 1288.2, y: 539.0, r: 6.6, status: 'pending' },
+  { id: 'YP071', type: '咬合桩-荤桩', workNo: 'A54', x: 1289.0, y: 519.2, r: 6.6, status: 'pending' },
+  { id: 'YP072', type: '咬合桩-荤桩', workNo: 'A55', x: 1289.7, y: 499.5, r: 6.6, status: 'pending' },
+  { id: 'YP073', type: '咬合桩-荤桩', workNo: 'A56', x: 1290.4, y: 479.8, r: 6.6, status: 'pending' },
+  { id: 'YP074', type: '咬合桩-荤桩', workNo: 'A57', x: 1291.2, y: 460.0, r: 6.6, status: 'pending' },
+  { id: 'YP075', type: '咬合桩-荤桩', workNo: 'A58', x: 1291.9, y: 440.3, r: 6.6, status: 'pending' },
+  { id: 'YP076', type: '咬合桩-荤桩', workNo: 'A59', x: 1292.7, y: 420.5, r: 6.6, status: 'pending' },
+  { id: 'YP077', type: '咬合桩-荤桩', workNo: 'A60', x: 1293.4, y: 400.8, r: 6.6, status: 'pending' },
+  { id: 'YP078', type: '咬合桩-荤桩', workNo: 'A61', x: 1294.1, y: 381.0, r: 6.6, status: 'pending' },
+  { id: 'YP079', type: '咬合桩-荤桩', workNo: 'A62', x: 1294.9, y: 361.3, r: 6.6, status: 'pending' },
+  { id: 'YP080', type: '咬合桩-荤桩', workNo: 'A63', x: 1295.6, y: 341.5, r: 6.6, status: 'pending' },
+  { id: 'YP081', type: '咬合桩-荤桩', workNo: 'A64', x: 1296.4, y: 321.8, r: 6.6, status: 'pending' },
+  { id: 'YP082', type: '咬合桩-荤桩', workNo: 'A65', x: 1297.1, y: 302.1, r: 6.6, status: 'pending' },
+  { id: 'YP083', type: '咬合桩-荤桩', workNo: 'A66', x: 1297.8, y: 282.3, r: 6.6, status: 'pending' },
+  { id: 'YP084', type: '咬合桩-荤桩', workNo: 'A67', x: 1298.6, y: 262.6, r: 6.6, status: 'pending' },
+  { id: 'YP085', type: '咬合桩-荤桩', workNo: 'A68', x: 1299.3, y: 242.8, r: 6.6, status: 'pending' },
+  { id: 'YP086', type: '咬合桩-荤桩', workNo: 'A69', x: 1300.1, y: 223.1, r: 6.6, status: 'pending' },
+  { id: 'YP087', type: '咬合桩-荤桩', workNo: 'A70', x: 1300.8, y: 203.3, r: 6.6, status: 'pending' },
+  { id: 'YP088', type: '咬合桩-荤桩', workNo: 'A71', x: 1287.3, y: 196.0, r: 6.6, status: 'pending' },
+  { id: 'YP089', type: '咬合桩-荤桩', workNo: 'A72', x: 1269.8, y: 196.0, r: 6.6, status: 'pending' },
+  { id: 'YP090', type: '咬合桩-荤桩', workNo: 'A73', x: 1252.2, y: 195.9, r: 6.6, status: 'pending' },
+  { id: 'YP091', type: '咬合桩-荤桩', workNo: 'A74', x: 1234.6, y: 195.8, r: 6.6, status: 'pending' },
+  { id: 'YP092', type: '咬合桩-荤桩', workNo: 'A75', x: 1217.1, y: 195.8, r: 6.6, status: 'pending' },
+  { id: 'YP093', type: '咬合桩-荤桩', workNo: 'A76', x: 1199.5, y: 195.7, r: 6.6, status: 'pending' },
+  { id: 'YP094', type: '咬合桩-荤桩', workNo: 'A77', x: 1181.9, y: 195.6, r: 6.6, status: 'pending' },
+  { id: 'YP095', type: '咬合桩-荤桩', workNo: 'A78', x: 1164.4, y: 195.6, r: 6.6, status: 'pending' },
+  { id: 'YP096', type: '咬合桩-荤桩', workNo: 'A79', x: 1146.8, y: 195.5, r: 6.6, status: 'pending' },
+  { id: 'YP097', type: '咬合桩-荤桩', workNo: 'A80', x: 1129.3, y: 195.4, r: 6.6, status: 'pending' },
+  { id: 'YP098', type: '咬合桩-荤桩', workNo: 'A81', x: 1111.7, y: 195.4, r: 6.6, status: 'pending' },
+  { id: 'YP099', type: '咬合桩-荤桩', workNo: 'A82', x: 1094.1, y: 195.3, r: 6.6, status: 'pending' },
+  { id: 'YP100', type: '咬合桩-荤桩', workNo: 'A83', x: 1076.6, y: 195.2, r: 6.6, status: 'pending' },
+  { id: 'YP101', type: '咬合桩-荤桩', workNo: 'A84', x: 1059.0, y: 195.2, r: 6.6, status: 'pending' },
+  { id: 'YP102', type: '咬合桩-荤桩', workNo: 'A85', x: 1041.4, y: 195.1, r: 6.6, status: 'pending' },
+  { id: 'YP103', type: '咬合桩-荤桩', workNo: 'A86', x: 1023.9, y: 195.0, r: 6.6, status: 'pending' },
+  { id: 'YP104', type: '咬合桩-荤桩', workNo: 'A87', x: 1006.3, y: 195.0, r: 6.6, status: 'pending' },
+  { id: 'YP105', type: '咬合桩-荤桩', workNo: 'A88', x: 988.8, y: 194.9, r: 6.6, status: 'pending' },
+  { id: 'YP106', type: '咬合桩-荤桩', workNo: 'A89', x: 971.2, y: 194.8, r: 6.6, status: 'pending' },
+  { id: 'YP107', type: '咬合桩-荤桩', workNo: 'A90', x: 953.6, y: 194.7, r: 6.6, status: 'pending' },
+  { id: 'YP108', type: '咬合桩-荤桩', workNo: 'A91', x: 936.1, y: 194.7, r: 6.6, status: 'pending' },
+  { id: 'YP109', type: '咬合桩-荤桩', workNo: 'A92', x: 918.5, y: 194.6, r: 6.6, status: 'pending' },
+  { id: 'YP110', type: '咬合桩-荤桩', workNo: 'A93', x: 901.0, y: 194.5, r: 6.6, status: 'pending' },
+  { id: 'YP111', type: '咬合桩-荤桩', workNo: 'A94', x: 883.4, y: 194.5, r: 6.6, status: 'pending' },
+  { id: 'YP112', type: '咬合桩-荤桩', workNo: 'A95', x: 865.8, y: 194.4, r: 6.6, status: 'pending' },
+  { id: 'YP113', type: '咬合桩-荤桩', workNo: 'A96', x: 848.3, y: 194.3, r: 6.6, status: 'pending' },
+  { id: 'YP114', type: '咬合桩-荤桩', workNo: 'A97', x: 830.7, y: 194.3, r: 6.6, status: 'pending' },
+  { id: 'YP115', type: '咬合桩-荤桩', workNo: 'A98', x: 813.1, y: 194.2, r: 6.6, status: 'pending' },
+  { id: 'YP116', type: '咬合桩-荤桩', workNo: 'A99', x: 795.6, y: 194.1, r: 6.6, status: 'pending' },
+  { id: 'YP117', type: '咬合桩-荤桩', workNo: 'A100', x: 778.0, y: 194.1, r: 6.6, status: 'pending' },
+  { id: 'YP118', type: '咬合桩-荤桩', workNo: 'A101', x: 760.5, y: 194.0, r: 6.6, status: 'pending' },
+  { id: 'YP119', type: '咬合桩-荤桩', workNo: 'A102', x: 742.9, y: 193.9, r: 6.6, status: 'pending' },
+  { id: 'YP120', type: '咬合桩-荤桩', workNo: 'A103', x: 725.4, y: 194.2, r: 6.6, status: 'pending' },
+  { id: 'YP121', type: '咬合桩-荤桩', workNo: 'A104', x: 708.3, y: 198.3, r: 6.6, status: 'pending' },
+  { id: 'YP122', type: '咬合桩-荤桩', workNo: 'A105', x: 691.5, y: 203.4, r: 6.6, status: 'pending' },
+  { id: 'YP123', type: '咬合桩-荤桩', workNo: 'A106', x: 675.0, y: 209.5, r: 6.6, status: 'pending' },
+  { id: 'YP124', type: '咬合桩-荤桩', workNo: 'A107', x: 658.9, y: 216.5, r: 6.6, status: 'pending' },
+  { id: 'YP125', type: '咬合桩-荤桩', workNo: 'A108', x: 643.3, y: 224.5, r: 6.6, status: 'pending' },
+  { id: 'YP126', type: '咬合桩-荤桩', workNo: 'A109', x: 628.1, y: 233.4, r: 6.6, status: 'pending' },
+  { id: 'YP127', type: '咬合桩-荤桩', workNo: 'A110', x: 612.1, y: 239.6, r: 6.6, status: 'pending' },
+  { id: 'YP128', type: '咬合桩-荤桩', workNo: 'A111', x: 594.5, y: 240.1, r: 6.6, status: 'pending' },
+  { id: 'YP129', type: '咬合桩-荤桩', workNo: 'A112', x: 577.0, y: 240.7, r: 6.6, status: 'pending' },
+  { id: 'YP130', type: '咬合桩-荤桩', workNo: 'A113', x: 559.4, y: 241.2, r: 6.6, status: 'pending' },
+  { id: 'YP131', type: '咬合桩-荤桩', workNo: 'A114', x: 541.9, y: 241.7, r: 6.6, status: 'pending' },
+  { id: 'YP132', type: '咬合桩-荤桩', workNo: 'A115', x: 524.3, y: 242.2, r: 6.6, status: 'pending' },
+  { id: 'YP133', type: '咬合桩-荤桩', workNo: 'A116', x: 506.8, y: 242.7, r: 6.6, status: 'pending' },
+  { id: 'YP134', type: '咬合桩-荤桩', workNo: 'A117', x: 489.2, y: 243.3, r: 6.6, status: 'pending' },
+  { id: 'YP135', type: '咬合桩-荤桩', workNo: 'A118', x: 471.7, y: 243.8, r: 6.6, startDate: '2026-07-15', endDate: '2026-07-17', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.77', holeDepth: '21.1', rockDepth: '3', rockElev: '15.7', actualLength: '17.3', actualBottomElev: '12.7', status: 'done' },
+  { id: 'YP136', type: '咬合桩-荤桩', workNo: 'A119', x: 454.1, y: 244.3, r: 6.6, status: 'pending' },
+  { id: 'YP137', type: '咬合桩-荤桩', workNo: 'A120', x: 436.6, y: 244.8, r: 6.6, status: 'pending' },
+  { id: 'YP138', type: '咬合桩-荤桩', workNo: 'A121', x: 419.0, y: 245.3, r: 6.6, status: 'pending' },
+  { id: 'YP139', type: '咬合桩-荤桩', workNo: 'A122', x: 401.4, y: 245.8, r: 6.6, startDate: '2026-07-17', endDate: '2026-07-19', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.77', holeDepth: '19.5', rockDepth: '3', rockElev: '17.3', actualLength: '15.7', actualBottomElev: '14.3', status: 'done' },
+  { id: 'YP140', type: '咬合桩-荤桩', workNo: 'A123', x: 383.9, y: 246.4, r: 6.6, status: 'pending' },
+  { id: 'YP141', type: '咬合桩-荤桩', workNo: 'A124', x: 366.3, y: 246.9, r: 6.6, status: 'pending' },
+  { id: 'YP142', type: '咬合桩-荤桩', workNo: 'A125', x: 348.8, y: 247.4, r: 6.6, status: 'pending' },
+  { id: 'YP143', type: '咬合桩-荤桩', workNo: 'A126', x: 331.2, y: 247.9, r: 6.6, status: 'pending' },
+  { id: 'YP144', type: '咬合桩-荤桩', workNo: 'A127', x: 313.7, y: 248.4, r: 6.6, status: 'pending' },
+  { id: 'YP145', type: '咬合桩-荤桩', workNo: 'A128', x: 296.1, y: 248.9, r: 6.6, status: 'pending' },
+  { id: 'YP146', type: '咬合桩-荤桩', workNo: 'A129', x: 278.6, y: 249.5, r: 6.6, status: 'pending' },
+  { id: 'YP147', type: '咬合桩-荤桩', workNo: 'A130', x: 261.0, y: 250.0, r: 6.6, status: 'pending' },
+  { id: 'YP148', type: '咬合桩-荤桩', workNo: 'A131', x: 243.5, y: 250.5, r: 6.6, status: 'pending' },
+  { id: 'YP149', type: '咬合桩-荤桩', workNo: 'A132', x: 225.9, y: 251.0, r: 6.6, status: 'pending' },
+  { id: 'YP150', type: '咬合桩-荤桩', workNo: 'A133', x: 208.3, y: 251.5, r: 6.6, status: 'pending' },
+  { id: 'YP151', type: '咬合桩-荤桩', workNo: 'A134', x: 190.8, y: 252.0, r: 6.6, status: 'pending' },
+  { id: 'YP152', type: '咬合桩-荤桩', workNo: 'A135', x: 173.2, y: 252.6, r: 6.6, status: 'pending' },
+  { id: 'WX001', type: '微型桩', workNo: 'D1', x: 167.4, y: 592.8, r: 2.0, status: 'pending' },
+  { id: 'WX002', type: '微型桩', workNo: 'D2', x: 167.5, y: 599.3, r: 2.0, status: 'pending' },
+  { id: 'WX003', type: '微型桩', workNo: 'D3', x: 167.6, y: 605.9, r: 2.0, status: 'pending' },
+  { id: 'WX004', type: '微型桩', workNo: 'D4', x: 167.7, y: 612.5, r: 2.0, status: 'pending' },
+  { id: 'WX005', type: '微型桩', workNo: 'D5', x: 167.8, y: 619.1, r: 2.0, status: 'pending' },
+  { id: 'WX006', type: '微型桩', workNo: 'D6', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 167.9, y: 625.7, r: 2.0, status: 'done' },
+  { id: 'WX007', type: '微型桩', workNo: 'D7', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.0, y: 632.3, r: 2.0, status: 'done' },
+  { id: 'WX008', type: '微型桩', workNo: 'D8', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.2, y: 638.9, r: 2.0, status: 'done' },
+  { id: 'WX009', type: '微型桩', workNo: 'D9', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.3, y: 645.4, r: 2.0, status: 'done' },
+  { id: 'WX010', type: '微型桩', workNo: 'D10', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.4, y: 652.0, r: 2.0, status: 'done' },
+  { id: 'WX011', type: '微型桩', workNo: 'D11', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.5, y: 658.6, r: 2.0, status: 'done' },
+  { id: 'WX012', type: '微型桩', workNo: 'D12', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.6, y: 665.2, r: 2.0, status: 'done' },
+  { id: 'WX013', type: '微型桩', workNo: 'D13', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.7, y: 671.8, r: 2.0, status: 'done' },
+  { id: 'WX014', type: '微型桩', workNo: 'D14', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.8, y: 678.4, r: 2.0, status: 'done' },
+  { id: 'WX015', type: '微型桩', workNo: 'D15', startDate: '2025-12-27', endDate: '2025-12-27', designTopElev: '27.7', designLength: '6.8', groundElev: '27.8', diameter: '220', holeDepth: '6.9', actualLength: '6.8', steelPipeLength: '6.9', bearingStratum: '中风化', rockElev: '26.8', rockDepth: '5.9', x: 168.9, y: 684.9, r: 2.0, status: 'done' },
+  { id: 'WX016', type: '微型桩', workNo: 'D16', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '5.9', actualLength: '5.6', steelPipeLength: '5.8', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '4.9', x: 169.1, y: 691.5, r: 2.0, status: 'done' },
+  { id: 'WX017', type: '微型桩', workNo: 'D17', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '6', actualLength: '5.7', steelPipeLength: '6', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '5', x: 169.2, y: 698.1, r: 2.0, status: 'done' },
+  { id: 'WX018', type: '微型桩', workNo: 'D18', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '6', actualLength: '5.7', steelPipeLength: '6', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '5', x: 169.3, y: 704.7, r: 2.0, status: 'done' },
+  { id: 'WX019', type: '微型桩', workNo: 'D19', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.8', actualLength: '3.5', steelPipeLength: '3.8', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.8', x: 169.4, y: 711.3, r: 2.0, status: 'done' },
+  { id: 'WX020', type: '微型桩', workNo: 'D20', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.2', actualLength: '2.9', steelPipeLength: '3.2', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.2', x: 169.5, y: 717.9, r: 2.0, status: 'done' },
+  { id: 'WX021', type: '微型桩', workNo: 'D21', startDate: '2025-12-22', endDate: '2025-12-22', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3', actualLength: '2.7', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 169.6, y: 724.5, r: 2.0, status: 'done' },
+  { id: 'WX022', type: '微型桩', workNo: 'D22', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.01', actualLength: '2.71', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.01', x: 169.7, y: 731.0, r: 2.0, status: 'done' },
+  { id: 'WX023', type: '微型桩', workNo: 'D23', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.02', actualLength: '2.72', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.02', x: 169.8, y: 737.6, r: 2.0, status: 'done' },
+  { id: 'WX024', type: '微型桩', workNo: 'D24', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.02', actualLength: '2.72', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.02', x: 170.0, y: 744.2, r: 2.0, status: 'done' },
+  { id: 'WX025', type: '微型桩', workNo: 'D25', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3', actualLength: '2.7', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 170.1, y: 750.8, r: 2.0, status: 'done' },
+  { id: 'WX026', type: '微型桩', workNo: 'D26', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.01', actualLength: '2.71', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.01', x: 170.2, y: 757.4, r: 2.0, status: 'done' },
+  { id: 'WX027', type: '微型桩', workNo: 'D27', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3', actualLength: '2.7', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 170.3, y: 764.0, r: 2.0, status: 'done' },
+  { id: 'WX028', type: '微型桩', workNo: 'D28', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.01', actualLength: '2.71', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.01', x: 172.6, y: 767.7, r: 2.0, status: 'done' },
+  { id: 'WX029', type: '微型桩', workNo: 'D29', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.02', actualLength: '2.72', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.02', x: 179.2, y: 767.6, r: 2.0, status: 'done' },
+  { id: 'WX030', type: '微型桩', workNo: 'D30', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.02', actualLength: '2.72', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.02', x: 185.8, y: 767.5, r: 2.0, status: 'done' },
+  { id: 'WX031', type: '微型桩', workNo: 'D31', startDate: '2025-12-23', endDate: '2025-12-23', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3.01', actualLength: '2.71', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2.01', x: 192.4, y: 767.4, r: 2.0, status: 'done' },
+  { id: 'WX032', type: '微型桩', workNo: 'D32', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3', actualLength: '2.7', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 199.0, y: 767.3, r: 2.0, status: 'done' },
+  { id: 'WX033', type: '微型桩', workNo: 'D33', startDate: '2025-12-24', endDate: '2025-12-24', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27.1', diameter: '220', holeDepth: '3', actualLength: '2.7', steelPipeLength: '3', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 205.6, y: 767.1, r: 2.0, status: 'done' },
+  { id: 'WX034', type: '微型桩', workNo: 'D34', startDate: '2026-07-09', endDate: '2026-07-08', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '3', actualLength: '2.8', steelPipeLength: '2.9', bearingStratum: '中风化', rockElev: '26', rockDepth: '2', x: 212.1, y: 767.0, r: 2.0, status: 'done' },
+  { id: 'WX035', type: '微型桩', workNo: 'D35', startDate: '2026-07-07', endDate: '2026-07-07', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '2.7', actualLength: '2.5', steelPipeLength: '2.6', bearingStratum: '中风化', rockElev: '26.3', rockDepth: '2', x: 218.7, y: 766.9, r: 2.0, status: 'done' },
+  { id: 'WX036', type: '微型桩', workNo: 'D36', startDate: '2026-07-08', endDate: '2026-07-07', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '3', actualLength: '2.8', steelPipeLength: '2.9', bearingStratum: '中风化', rockElev: '26', rockDepth: '2', x: 225.3, y: 766.8, r: 2.0, status: 'done' },
+  { id: 'WX037', type: '微型桩', workNo: 'D37', startDate: '2026-07-08', endDate: '2026-07-07', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '3', actualLength: '2.8', steelPipeLength: '2.9', bearingStratum: '中风化', rockElev: '26', rockDepth: '2', x: 231.9, y: 766.7, r: 2.0, status: 'done' },
+  { id: 'WX038', type: '微型桩', workNo: 'D38', startDate: '2026-07-04', endDate: '2026-07-04', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '2.9', actualLength: '2.7', steelPipeLength: '2.8', bearingStratum: '中风化', rockElev: '26.1', rockDepth: '2', x: 238.5, y: 766.6, r: 2.0, status: 'done' },
+  { id: 'WX039', type: '微型桩', workNo: 'D39', startDate: '2026-07-07', endDate: '2026-07-07', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '2.77', actualLength: '2.57', steelPipeLength: '2.67', bearingStratum: '中风化', rockElev: '26.23', rockDepth: '2', x: 245.1, y: 766.5, r: 2.0, status: 'done' },
+  { id: 'WX040', type: '微型桩', workNo: 'D40', startDate: '2026-07-03', endDate: '2026-07-03', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '2.84', actualLength: '2.64', steelPipeLength: '2.74', bearingStratum: '中风化', rockElev: '26.16', rockDepth: '2', x: 251.7, y: 766.3, r: 2.0, status: 'done' },
+  { id: 'WX041', type: '微型桩', workNo: 'D41', startDate: '2026-07-04', endDate: '2026-07-04', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '2.83', actualLength: '2.63', steelPipeLength: '2.73', bearingStratum: '中风化', rockElev: '26.2', rockDepth: '2.03', x: 258.2, y: 766.2, r: 2.0, status: 'done' },
+  { id: 'WX042', type: '微型桩', workNo: 'D42', startDate: '2026-07-03', endDate: '2026-07-03', designTopElev: '26.8', designLength: '入岩≥ 2m', groundElev: '27', diameter: '220', holeDepth: '3.2', actualLength: '3', steelPipeLength: '3.1', bearingStratum: '中风化', rockElev: '25.8', rockDepth: '2', x: 264.8, y: 766.1, r: 2.0, status: 'done' },
+  { id: 'WX043', type: '微型桩', workNo: 'D43', startDate: '2026-07-02', endDate: '2026-07-02', designTopElev: '26.6', designLength: '5.3', groundElev: '27', diameter: '220', holeDepth: '5.7', actualLength: '5.3', steelPipeLength: '5.4', x: 271.4, y: 766.0, r: 2.0, status: 'done' },
+  { id: 'WX044', type: '微型桩', workNo: 'D44', startDate: '2026-07-03', endDate: '2026-07-03', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 278.0, y: 765.9, r: 2.0, status: 'done' },
+  { id: 'WX045', type: '微型桩', workNo: 'D45', startDate: '2026-06-29', endDate: '2026-06-29', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 284.6, y: 765.8, r: 2.0, status: 'done' },
+  { id: 'WX046', type: '微型桩', workNo: 'D46', startDate: '2026-07-01', endDate: '2026-07-01', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.42', x: 291.2, y: 765.7, r: 2.0, status: 'done' },
+  { id: 'WX047', type: '微型桩', workNo: 'D47', startDate: '2026-06-29', endDate: '2026-06-29', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 297.7, y: 765.5, r: 2.0, status: 'done' },
+  { id: 'WX048', type: '微型桩', workNo: 'D48', startDate: '2026-07-02', endDate: '2026-07-02', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 304.3, y: 765.4, r: 2.0, status: 'done' },
+  { id: 'WX049', type: '微型桩', workNo: 'D49', startDate: '2026-06-30', endDate: '2026-06-30', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 310.9, y: 765.3, r: 2.0, status: 'done' },
+  { id: 'WX050', type: '微型桩', workNo: 'D50', startDate: '2026-07-02', endDate: '2026-07-02', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.4', x: 317.5, y: 765.2, r: 2.0, status: 'done' },
+  { id: 'WX051', type: '微型桩', workNo: 'D51', startDate: '2026-06-25', endDate: '2026-06-25', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.49', actualLength: '5.39', steelPipeLength: '5.41', x: 324.1, y: 765.1, r: 2.0, status: 'done' },
+  { id: 'WX052', type: '微型桩', workNo: 'D52', startDate: '2026-06-24', endDate: '2026-06-24', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.4', actualLength: '5.30000000000001', steelPipeLength: '4.43', x: 330.7, y: 765.0, r: 2.0, status: 'done' },
+  { id: 'WX053', type: '微型桩', workNo: 'D53', startDate: '2026-06-25', endDate: '2026-06-25', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.41', x: 337.3, y: 764.9, r: 2.0, status: 'done' },
+  { id: 'WX054', type: '微型桩', workNo: 'D54', startDate: '2026-06-24', endDate: '2026-06-24', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.42', x: 343.8, y: 764.7, r: 2.0, status: 'done' },
+  { id: 'WX055', type: '微型桩', workNo: 'D55', startDate: '2026-06-24', endDate: '2026-06-24', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.49', actualLength: '5.39', steelPipeLength: '5.41', x: 350.4, y: 764.6, r: 2.0, status: 'done' },
+  { id: 'WX056', type: '微型桩', workNo: 'D56', startDate: '2026-06-23', endDate: '2026-06-23', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.43', x: 357.0, y: 764.5, r: 2.0, status: 'done' },
+  { id: 'WX057', type: '微型桩', workNo: 'D57', startDate: '2026-06-24', endDate: '2026-06-24', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.43', actualLength: '5.33', steelPipeLength: '5.42', x: 363.6, y: 764.4, r: 2.0, status: 'done' },
+  { id: 'WX058', type: '微型桩', workNo: 'D58', startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.43', actualLength: '5.33', steelPipeLength: '5.43', x: 370.2, y: 764.3, r: 2.0, status: 'done' },
+  { id: 'WX059', type: '微型桩', workNo: 'D59', startDate: '2026-06-23', endDate: '2026-06-23', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.45', actualLength: '5.35', steelPipeLength: '5.43', x: 376.8, y: 764.2, r: 2.0, status: 'done' },
+  { id: 'WX060', type: '微型桩', workNo: 'D60', startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.41', actualLength: '5.31', steelPipeLength: '5.41', x: 383.3, y: 764.1, r: 2.0, status: 'done' },
+  { id: 'WX061', type: '微型桩', workNo: 'D61', startDate: '2026-06-19', endDate: '2026-06-20', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.53', actualLength: '5.43', steelPipeLength: '5.54', x: 389.9, y: 764.0, r: 2.0, status: 'done' },
+  { id: 'WX062', type: '微型桩', workNo: 'D62', startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.43', actualLength: '5.33', steelPipeLength: '5.43', x: 396.5, y: 763.8, r: 2.0, status: 'done' },
+  { id: 'WX063', type: '微型桩', workNo: 'D63', startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.41', actualLength: '5.31', steelPipeLength: '5.41', x: 403.1, y: 763.7, r: 2.0, status: 'done' },
+  { id: 'WX064', type: '微型桩', workNo: 'D64', startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.42', x: 409.7, y: 763.6, r: 2.0, status: 'done' },
+  { id: 'WX065', type: '微型桩', workNo: 'D65', startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.41', actualLength: '5.31', steelPipeLength: '5.41', x: 416.3, y: 763.5, r: 2.0, status: 'done' },
+  { id: 'WX066', type: '微型桩', workNo: 'D66', startDate: '2026-06-20', endDate: '2026-06-20', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.53', actualLength: '5.43', steelPipeLength: '5.53', x: 422.9, y: 763.4, r: 2.0, status: 'done' },
+  { id: 'WX067', type: '微型桩', workNo: 'D67', startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.49', actualLength: '5.39', steelPipeLength: '5.49', x: 429.4, y: 763.3, r: 2.0, status: 'done' },
+  { id: 'WX068', type: '微型桩', workNo: 'D68', startDate: '2026-06-20', endDate: '2026-06-20', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.55', actualLength: '5.45', steelPipeLength: '5.55', x: 436.0, y: 763.2, r: 2.0, status: 'done' },
+  { id: 'WX069', type: '微型桩', workNo: 'D69', startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.46', actualLength: '5.36', steelPipeLength: '5.46', x: 442.6, y: 763.0, r: 2.0, status: 'done' },
+  { id: 'WX070', type: '微型桩', workNo: 'D70', startDate: '2026-06-20', endDate: '2026-06-20', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.43', actualLength: '5.33', steelPipeLength: '5.42', x: 449.2, y: 762.9, r: 2.0, status: 'done' },
+  { id: 'WX071', type: '微型桩', workNo: 'D71', startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.42', actualLength: '5.32', steelPipeLength: '5.42', x: 455.8, y: 762.8, r: 2.0, status: 'done' },
+  { id: 'WX072', type: '微型桩', workNo: 'D72', startDate: '2026-06-19', endDate: '2026-06-20', designTopElev: '26.6', designLength: '5.3', groundElev: '26.7', diameter: '220', holeDepth: '5.41', actualLength: '5.31', steelPipeLength: '5.41', x: 462.4, y: 762.7, r: 2.0, status: 'done' },
   { id: 'ZS001', type: '双管旋喷桩', x: 166.9, y: 277.2, r: 4.0, x2: 166.9, y2: 275.1, status: 'pending' },
   { id: 'ZS002', type: '双管旋喷桩', x: 167.3, y: 297.0, r: 4.0, x2: 167.2, y2: 294.8, status: 'pending' },
   { id: 'ZS003', type: '双管旋喷桩', x: 167.6, y: 316.8, r: 4.0, x2: 167.6, y2: 314.6, status: 'pending' },
@@ -1961,47 +1986,47 @@ const piles = [
   { id: 'ZS014', type: '双管旋喷桩', x: 171.3, y: 534.1, r: 4.0, x2: 171.3, y2: 531.9, status: 'pending' },
   { id: 'ZS015', type: '双管旋喷桩', x: 171.6, y: 553.8, r: 4.0, x2: 171.6, y2: 551.6, status: 'pending' },
   { id: 'ZS016', type: '双管旋喷桩', x: 172.0, y: 573.6, r: 4.0, x2: 171.9, y2: 571.4, status: 'pending' },
-  { id: 'ZS017', type: '咬合桩-素桩', x: 480.1, y: 767.8, r: 5.5, status: 'pending' },
-  { id: 'ZS018', type: '咬合桩-素桩', x: 499.9, y: 767.4, r: 5.5, status: 'pending' },
-  { id: 'ZS019', type: '咬合桩-素桩', x: 519.6, y: 767.1, r: 5.5, status: 'pending' },
-  { id: 'ZS020', type: '咬合桩-素桩', x: 539.4, y: 766.7, r: 5.5, status: 'pending' },
-  { id: 'ZS021', type: '咬合桩-素桩', x: 559.1, y: 766.4, r: 5.5, status: 'pending' },
-  { id: 'ZS022', type: '咬合桩-素桩', x: 578.9, y: 766.1, r: 5.5, status: 'pending' },
-  { id: 'ZS023', type: '咬合桩-素桩', x: 598.6, y: 765.7, r: 5.5, status: 'pending' },
-  { id: 'ZS024', type: '咬合桩-素桩', x: 618.4, y: 765.4, r: 5.5, status: 'pending' },
-  { id: 'ZS025', type: '咬合桩-素桩', x: 638.2, y: 765.0, r: 5.5, status: 'pending' },
-  { id: 'ZS026', type: '咬合桩-素桩', x: 657.9, y: 764.7, r: 5.5, status: 'pending' },
-  { id: 'ZS027', type: '咬合桩-素桩', x: 677.7, y: 764.3, r: 5.5, status: 'pending' },
-  { id: 'ZS028', type: '咬合桩-素桩', x: 697.4, y: 764.0, r: 5.5, status: 'pending' },
-  { id: 'ZS029', type: '咬合桩-素桩', x: 717.2, y: 763.7, r: 5.5, status: 'pending' },
-  { id: 'ZS030', type: '咬合桩-素桩', x: 736.9, y: 763.3, r: 5.5, status: 'pending' },
-  { id: 'ZS031', type: '咬合桩-素桩', x: 756.7, y: 763.0, r: 5.5, status: 'pending' },
-  { id: 'ZS032', type: '咬合桩-素桩', x: 776.4, y: 762.6, r: 5.5, status: 'pending' },
-  { id: 'ZS033', type: '咬合桩-素桩', x: 796.2, y: 762.3, r: 5.5, status: 'pending' },
-  { id: 'ZS034', type: '咬合桩-素桩', x: 815.9, y: 761.9, r: 5.5, status: 'pending' },
-  { id: 'ZS035', type: '咬合桩-素桩', x: 835.7, y: 761.6, r: 5.5, status: 'pending' },
-  { id: 'ZS036', type: '咬合桩-素桩', x: 855.5, y: 761.3, r: 5.5, status: 'pending' },
-  { id: 'ZS037', type: '咬合桩-素桩', x: 875.2, y: 760.9, r: 5.5, status: 'pending' },
-  { id: 'ZS038', type: '咬合桩-素桩', x: 895.0, y: 760.6, r: 5.5, status: 'pending' },
-  { id: 'ZS039', type: '咬合桩-素桩', x: 914.7, y: 760.2, r: 5.5, status: 'pending' },
-  { id: 'ZS040', type: '咬合桩-素桩', x: 934.5, y: 759.9, r: 5.5, status: 'pending' },
-  { id: 'ZS041', type: '咬合桩-素桩', x: 954.2, y: 759.6, r: 5.5, status: 'pending' },
-  { id: 'ZS042', type: '咬合桩-素桩', x: 974.0, y: 759.2, r: 5.5, status: 'pending' },
-  { id: 'ZS043', type: '咬合桩-素桩', x: 993.7, y: 758.9, r: 5.5, status: 'pending' },
-  { id: 'ZS044', type: '咬合桩-素桩', x: 1013.5, y: 758.5, r: 5.5, status: 'pending' },
-  { id: 'ZS045', type: '咬合桩-素桩', x: 1033.2, y: 758.2, r: 5.5, status: 'pending' },
-  { id: 'ZS046', type: '咬合桩-素桩', x: 1053.0, y: 757.8, r: 5.5, status: 'pending' },
-  { id: 'ZS047', type: '咬合桩-素桩', x: 1072.8, y: 757.5, r: 5.5, status: 'pending' },
-  { id: 'ZS048', type: '咬合桩-素桩', x: 1092.5, y: 757.2, r: 5.5, status: 'pending' },
-  { id: 'ZS049', type: '咬合桩-素桩', x: 1112.3, y: 756.8, r: 5.5, status: 'pending' },
-  { id: 'ZS050', type: '咬合桩-素桩', x: 1132.0, y: 756.5, r: 5.5, status: 'pending' },
-  { id: 'ZS051', type: '咬合桩-素桩', x: 1151.8, y: 756.1, r: 5.5, status: 'pending' },
-  { id: 'ZS052', type: '咬合桩-素桩', x: 1171.5, y: 755.8, r: 5.5, status: 'pending' },
-  { id: 'ZS053', type: '咬合桩-素桩', x: 1191.3, y: 755.4, r: 5.5, status: 'pending' },
-  { id: 'ZS054', type: '咬合桩-素桩', x: 1211.0, y: 755.1, r: 5.5, status: 'pending' },
-  { id: 'ZS055', type: '咬合桩-素桩', x: 1230.8, y: 754.8, r: 5.5, status: 'pending' },
-  { id: 'ZS056', type: '咬合桩-素桩', x: 1250.5, y: 754.4, r: 5.5, status: 'pending' },
-  { id: 'ZS057', type: '咬合桩-素桩', x: 1270.3, y: 754.1, r: 5.5, status: 'pending' },
+  { id: 'ZS017', type: '咬合桩-素桩', workNo: 'B1', x: 480.1, y: 767.8, r: 5.5, startDate: '2026-07-07', endDate: '2026-07-08', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '5.32', rockDepth: '1.17', rockElev: '22.79', actualLength: '4.18', actualBottomElev: '21.62', status: 'done' },
+  { id: 'ZS018', type: '咬合桩-素桩', workNo: 'B2', x: 499.9, y: 767.4, r: 5.5, startDate: '2026-07-09', endDate: '2026-07-09', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '4.72', rockDepth: '1.02', rockElev: '23.24', actualLength: '3.58', actualBottomElev: '22.22', status: 'done' },
+  { id: 'ZS019', type: '咬合桩-素桩', workNo: 'B3', x: 519.6, y: 767.1, r: 5.5, startDate: '2026-07-10', endDate: '2026-07-10', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '5.4', rockDepth: '1.02', rockElev: '22.56', actualLength: '4.26', actualBottomElev: '21.54', status: 'done' },
+  { id: 'ZS020', type: '咬合桩-素桩', workNo: 'B4', x: 539.4, y: 766.7, r: 5.5, status: 'pending' },
+  { id: 'ZS021', type: '咬合桩-素桩', workNo: 'B5', x: 559.1, y: 766.4, r: 5.5, status: 'pending' },
+  { id: 'ZS022', type: '咬合桩-素桩', workNo: 'B6', x: 578.9, y: 766.1, r: 5.5, status: 'pending' },
+  { id: 'ZS023', type: '咬合桩-素桩', workNo: 'B7', x: 598.6, y: 765.7, r: 5.5, status: 'pending' },
+  { id: 'ZS024', type: '咬合桩-素桩', workNo: 'B8', x: 618.4, y: 765.4, r: 5.5, status: 'pending' },
+  { id: 'ZS025', type: '咬合桩-素桩', workNo: 'B9', x: 638.2, y: 765.0, r: 5.5, status: 'pending' },
+  { id: 'ZS026', type: '咬合桩-素桩', workNo: 'B10', x: 657.9, y: 764.7, r: 5.5, startDate: '2026-07-01', endDate: '2026-07-02', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.9', holeDepth: '9.25', rockDepth: '1.11', rockElev: '18.76', actualLength: '8.15', actualBottomElev: '17.65', status: 'done' },
+  { id: 'ZS027', type: '咬合桩-素桩', workNo: 'B11', x: 677.7, y: 764.3, r: 5.5, startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '8.71', rockDepth: '1.13', rockElev: '19.36', actualLength: '7.57', actualBottomElev: '18.23', status: 'done' },
+  { id: 'ZS028', type: '咬合桩-素桩', workNo: 'B12', x: 697.4, y: 764.0, r: 5.5, startDate: '2026-06-23', endDate: '2026-06-23', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '8.3', rockDepth: '1.16', rockElev: '19.8', actualLength: '7.16', actualBottomElev: '18.64', status: 'done' },
+  { id: 'ZS029', type: '咬合桩-素桩', workNo: 'B13', x: 717.2, y: 763.7, r: 5.5, startDate: '2026-07-01', endDate: '2026-07-01', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '10.67', rockDepth: '1.04', rockElev: '17.31', actualLength: '9.53', actualBottomElev: '16.27', status: 'done' },
+  { id: 'ZS030', type: '咬合桩-素桩', workNo: 'B14', x: 736.9, y: 763.3, r: 5.5, startDate: '2026-06-22', endDate: '2026-06-23', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '11.23', rockDepth: '1', rockElev: '16.71', actualLength: '10.09', actualBottomElev: '15.71', status: 'done' },
+  { id: 'ZS031', type: '咬合桩-素桩', workNo: 'B15', x: 756.7, y: 763.0, r: 5.5, startDate: '2026-06-21', endDate: '2026-06-21', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '12.44', rockDepth: '1.02', rockElev: '15.52', actualLength: '11.3', actualBottomElev: '14.5', status: 'done' },
+  { id: 'ZS032', type: '咬合桩-素桩', workNo: 'B16', x: 776.4, y: 762.6, r: 5.5, status: 'pending' },
+  { id: 'ZS033', type: '咬合桩-素桩', workNo: 'B17', x: 796.2, y: 762.3, r: 5.5, status: 'pending' },
+  { id: 'ZS034', type: '咬合桩-素桩', workNo: 'B18', x: 815.9, y: 761.9, r: 5.5, status: 'pending' },
+  { id: 'ZS035', type: '咬合桩-素桩', workNo: 'B19', x: 835.7, y: 761.6, r: 5.5, status: 'pending' },
+  { id: 'ZS036', type: '咬合桩-素桩', workNo: 'B20', x: 855.5, y: 761.3, r: 5.5, status: 'pending' },
+  { id: 'ZS037', type: '咬合桩-素桩', workNo: 'B21', x: 875.2, y: 760.9, r: 5.5, status: 'pending' },
+  { id: 'ZS038', type: '咬合桩-素桩', workNo: 'B22', x: 895.0, y: 760.6, r: 5.5, status: 'pending' },
+  { id: 'ZS039', type: '咬合桩-素桩', workNo: 'B23', x: 914.7, y: 760.2, r: 5.5, status: 'pending' },
+  { id: 'ZS040', type: '咬合桩-素桩', workNo: 'B24', x: 934.5, y: 759.9, r: 5.5, status: 'pending' },
+  { id: 'ZS041', type: '咬合桩-素桩', workNo: 'B25', x: 954.2, y: 759.6, r: 5.5, status: 'pending' },
+  { id: 'ZS042', type: '咬合桩-素桩', workNo: 'B26', x: 974.0, y: 759.2, r: 5.5, status: 'pending' },
+  { id: 'ZS043', type: '咬合桩-素桩', workNo: 'B27', x: 993.7, y: 758.9, r: 5.5, status: 'pending' },
+  { id: 'ZS044', type: '咬合桩-素桩', workNo: 'B28', x: 1013.5, y: 758.5, r: 5.5, status: 'pending' },
+  { id: 'ZS045', type: '咬合桩-素桩', workNo: 'B29', x: 1033.2, y: 758.2, r: 5.5, status: 'pending' },
+  { id: 'ZS046', type: '咬合桩-素桩', workNo: 'B30', x: 1053.0, y: 757.8, r: 5.5, status: 'pending' },
+  { id: 'ZS047', type: '咬合桩-素桩', workNo: 'B31', x: 1072.8, y: 757.5, r: 5.5, status: 'pending' },
+  { id: 'ZS048', type: '咬合桩-素桩', workNo: 'B32', x: 1092.5, y: 757.2, r: 5.5, status: 'pending' },
+  { id: 'ZS049', type: '咬合桩-素桩', workNo: 'B33', x: 1112.3, y: 756.8, r: 5.5, status: 'pending' },
+  { id: 'ZS050', type: '咬合桩-素桩', workNo: 'B34', x: 1132.0, y: 756.5, r: 5.5, status: 'pending' },
+  { id: 'ZS051', type: '咬合桩-素桩', workNo: 'B35', x: 1151.8, y: 756.1, r: 5.5, status: 'pending' },
+  { id: 'ZS052', type: '咬合桩-素桩', workNo: 'B36', x: 1171.5, y: 755.8, r: 5.5, status: 'pending' },
+  { id: 'ZS053', type: '咬合桩-素桩', workNo: 'B37', x: 1191.3, y: 755.4, r: 5.5, status: 'pending' },
+  { id: 'ZS054', type: '咬合桩-素桩', workNo: 'B38', x: 1211.0, y: 755.1, r: 5.5, status: 'pending' },
+  { id: 'ZS055', type: '咬合桩-素桩', workNo: 'B39', x: 1230.8, y: 754.8, r: 5.5, status: 'pending' },
+  { id: 'ZS056', type: '咬合桩-素桩', workNo: 'B40', x: 1250.5, y: 754.4, r: 5.5, status: 'pending' },
+  { id: 'ZS057', type: '咬合桩-素桩', workNo: 'B41', x: 1270.3, y: 754.1, r: 5.5, status: 'pending' },
   { id: 'ZS058', type: '双管旋喷桩', x: 1280.5, y: 745.4, r: 4.0, x2: 1280.6, y2: 743.2, status: 'pending' },
   { id: 'ZS059', type: '双管旋喷桩', x: 1281.2, y: 726.5, r: 4.0, x2: 1281.3, y2: 724.3, status: 'pending' },
   { id: 'ZS060', type: '双管旋喷桩', x: 1281.9, y: 706.8, r: 4.0, x2: 1282.0, y2: 704.6, status: 'pending' },
@@ -2030,71 +2055,71 @@ const piles = [
   { id: 'ZS083', type: '双管旋喷桩', x: 1299.0, y: 252.7, r: 4.0, x2: 1299.0, y2: 250.5, status: 'pending' },
   { id: 'ZS084', type: '双管旋喷桩', x: 1299.7, y: 233.0, r: 4.0, x2: 1299.8, y2: 230.8, status: 'pending' },
   { id: 'ZS085', type: '双管旋喷桩', x: 1300.4, y: 213.2, r: 4.0, x2: 1300.5, y2: 211.0, status: 'pending' },
-  { id: 'ZS086', type: '咬合桩-素桩', x: 1296.1, y: 196.1, r: 5.5, status: 'pending' },
-  { id: 'ZS087', type: '咬合桩-素桩', x: 1278.5, y: 196.0, r: 5.5, status: 'pending' },
-  { id: 'ZS088', type: '咬合桩-素桩', x: 1261.0, y: 195.9, r: 5.5, status: 'pending' },
-  { id: 'ZS089', type: '咬合桩-素桩', x: 1243.4, y: 195.9, r: 5.5, status: 'pending' },
-  { id: 'ZS090', type: '咬合桩-素桩', x: 1225.8, y: 195.8, r: 5.5, status: 'pending' },
-  { id: 'ZS091', type: '咬合桩-素桩', x: 1208.3, y: 195.7, r: 5.5, status: 'pending' },
-  { id: 'ZS092', type: '咬合桩-素桩', x: 1190.7, y: 195.7, r: 5.5, status: 'pending' },
-  { id: 'ZS093', type: '咬合桩-素桩', x: 1173.2, y: 195.6, r: 5.5, status: 'pending' },
-  { id: 'ZS094', type: '咬合桩-素桩', x: 1155.6, y: 195.5, r: 5.5, status: 'pending' },
-  { id: 'ZS095', type: '咬合桩-素桩', x: 1138.0, y: 195.5, r: 5.5, status: 'pending' },
-  { id: 'ZS096', type: '咬合桩-素桩', x: 1120.5, y: 195.4, r: 5.5, status: 'pending' },
-  { id: 'ZS097', type: '咬合桩-素桩', x: 1102.9, y: 195.3, r: 5.5, status: 'pending' },
-  { id: 'ZS098', type: '咬合桩-素桩', x: 1085.4, y: 195.3, r: 5.5, status: 'pending' },
-  { id: 'ZS099', type: '咬合桩-素桩', x: 1067.8, y: 195.2, r: 5.5, status: 'pending' },
-  { id: 'ZS100', type: '咬合桩-素桩', x: 1050.2, y: 195.1, r: 5.5, status: 'pending' },
-  { id: 'ZS101', type: '咬合桩-素桩', x: 1032.7, y: 195.1, r: 5.5, status: 'pending' },
-  { id: 'ZS102', type: '咬合桩-素桩', x: 1015.1, y: 195.0, r: 5.5, status: 'pending' },
-  { id: 'ZS103', type: '咬合桩-素桩', x: 997.5, y: 194.9, r: 5.5, status: 'pending' },
-  { id: 'ZS104', type: '咬合桩-素桩', x: 980.0, y: 194.8, r: 5.5, status: 'pending' },
-  { id: 'ZS105', type: '咬合桩-素桩', x: 962.4, y: 194.8, r: 5.5, status: 'pending' },
-  { id: 'ZS106', type: '咬合桩-素桩', x: 944.9, y: 194.7, r: 5.5, status: 'pending' },
-  { id: 'ZS107', type: '咬合桩-素桩', x: 927.3, y: 194.6, r: 5.5, status: 'pending' },
-  { id: 'ZS108', type: '咬合桩-素桩', x: 909.7, y: 194.6, r: 5.5, status: 'pending' },
-  { id: 'ZS109', type: '咬合桩-素桩', x: 892.2, y: 194.5, r: 5.5, status: 'pending' },
-  { id: 'ZS110', type: '咬合桩-素桩', x: 874.6, y: 194.4, r: 5.5, status: 'pending' },
-  { id: 'ZS111', type: '咬合桩-素桩', x: 857.0, y: 194.4, r: 5.5, status: 'pending' },
-  { id: 'ZS112', type: '咬合桩-素桩', x: 839.5, y: 194.3, r: 5.5, status: 'pending' },
-  { id: 'ZS113', type: '咬合桩-素桩', x: 821.9, y: 194.2, r: 5.5, status: 'pending' },
-  { id: 'ZS114', type: '咬合桩-素桩', x: 804.4, y: 194.2, r: 5.5, status: 'pending' },
-  { id: 'ZS115', type: '咬合桩-素桩', x: 786.8, y: 194.1, r: 5.5, status: 'pending' },
-  { id: 'ZS116', type: '咬合桩-素桩', x: 769.2, y: 194.0, r: 5.5, status: 'pending' },
-  { id: 'ZS117', type: '咬合桩-素桩', x: 751.7, y: 194.0, r: 5.5, status: 'pending' },
-  { id: 'ZS118', type: '咬合桩-素桩', x: 734.1, y: 193.9, r: 5.5, status: 'pending' },
-  { id: 'ZS119', type: '咬合桩-素桩', x: 716.8, y: 196.1, r: 5.5, status: 'pending' },
-  { id: 'ZS120', type: '咬合桩-素桩', x: 699.9, y: 200.7, r: 5.5, status: 'pending' },
-  { id: 'ZS121', type: '咬合桩-素桩', x: 683.2, y: 206.3, r: 5.5, status: 'pending' },
-  { id: 'ZS122', type: '咬合桩-素桩', x: 666.9, y: 212.9, r: 5.5, status: 'pending' },
-  { id: 'ZS123', type: '咬合桩-素桩', x: 651.1, y: 220.4, r: 5.5, status: 'pending' },
-  { id: 'ZS124', type: '咬合桩-素桩', x: 635.6, y: 228.8, r: 5.5, status: 'pending' },
-  { id: 'ZS125', type: '咬合桩-素桩', x: 620.4, y: 237.6, r: 5.5, status: 'pending' },
-  { id: 'ZS126', type: '咬合桩-素桩', x: 603.3, y: 239.9, r: 5.5, status: 'pending' },
-  { id: 'ZS127', type: '咬合桩-素桩', x: 585.8, y: 240.4, r: 5.5, status: 'pending' },
-  { id: 'ZS128', type: '咬合桩-素桩', x: 568.2, y: 240.9, r: 5.5, status: 'pending' },
-  { id: 'ZS129', type: '咬合桩-素桩', x: 550.7, y: 241.4, r: 5.5, status: 'pending' },
-  { id: 'ZS130', type: '咬合桩-素桩', x: 533.1, y: 242.0, r: 5.5, status: 'pending' },
-  { id: 'ZS131', type: '咬合桩-素桩', x: 515.6, y: 242.5, r: 5.5, status: 'pending' },
-  { id: 'ZS132', type: '咬合桩-素桩', x: 498.0, y: 243.0, r: 5.5, status: 'pending' },
-  { id: 'ZS133', type: '咬合桩-素桩', x: 480.4, y: 243.5, r: 5.5, status: 'pending' },
-  { id: 'ZS134', type: '咬合桩-素桩', x: 462.9, y: 244.0, r: 5.5, status: 'pending' },
-  { id: 'ZS135', type: '咬合桩-素桩', x: 445.3, y: 244.5, r: 5.5, status: 'pending' },
-  { id: 'ZS136', type: '咬合桩-素桩', x: 427.8, y: 245.1, r: 5.5, status: 'pending' },
-  { id: 'ZS137', type: '咬合桩-素桩', x: 410.2, y: 245.6, r: 5.5, status: 'pending' },
-  { id: 'ZS138', type: '咬合桩-素桩', x: 392.7, y: 246.1, r: 5.5, status: 'pending' },
-  { id: 'ZS139', type: '咬合桩-素桩', x: 375.1, y: 246.6, r: 5.5, status: 'pending' },
-  { id: 'ZS140', type: '咬合桩-素桩', x: 357.6, y: 247.1, r: 5.5, status: 'pending' },
-  { id: 'ZS141', type: '咬合桩-素桩', x: 340.0, y: 247.6, r: 5.5, status: 'pending' },
-  { id: 'ZS142', type: '咬合桩-素桩', x: 322.5, y: 248.2, r: 5.5, status: 'pending' },
-  { id: 'ZS143', type: '咬合桩-素桩', x: 304.9, y: 248.7, r: 5.5, status: 'pending' },
-  { id: 'ZS144', type: '咬合桩-素桩', x: 287.3, y: 249.2, r: 5.5, status: 'pending' },
-  { id: 'ZS145', type: '咬合桩-素桩', x: 269.8, y: 249.7, r: 5.5, status: 'pending' },
-  { id: 'ZS146', type: '咬合桩-素桩', x: 252.2, y: 250.2, r: 5.5, status: 'pending' },
-  { id: 'ZS147', type: '咬合桩-素桩', x: 234.7, y: 250.8, r: 5.5, status: 'pending' },
-  { id: 'ZS148', type: '咬合桩-素桩', x: 217.1, y: 251.3, r: 5.5, status: 'pending' },
-  { id: 'ZS149', type: '咬合桩-素桩', x: 199.6, y: 251.8, r: 5.5, status: 'pending' },
-  { id: 'ZS150', type: '咬合桩-素桩', x: 182.0, y: 252.3, r: 5.5, status: 'pending' },
+  { id: 'ZS086', type: '咬合桩-素桩', workNo: 'B42', x: 1296.1, y: 196.1, r: 5.5, status: 'pending' },
+  { id: 'ZS087', type: '咬合桩-素桩', workNo: 'B43', x: 1278.5, y: 196.0, r: 5.5, status: 'pending' },
+  { id: 'ZS088', type: '咬合桩-素桩', workNo: 'B44', x: 1261.0, y: 195.9, r: 5.5, status: 'pending' },
+  { id: 'ZS089', type: '咬合桩-素桩', workNo: 'B45', x: 1243.4, y: 195.9, r: 5.5, status: 'pending' },
+  { id: 'ZS090', type: '咬合桩-素桩', workNo: 'B46', x: 1225.8, y: 195.8, r: 5.5, status: 'pending' },
+  { id: 'ZS091', type: '咬合桩-素桩', workNo: 'B47', x: 1208.3, y: 195.7, r: 5.5, status: 'pending' },
+  { id: 'ZS092', type: '咬合桩-素桩', workNo: 'B48', x: 1190.7, y: 195.7, r: 5.5, status: 'pending' },
+  { id: 'ZS093', type: '咬合桩-素桩', workNo: 'B49', x: 1173.2, y: 195.6, r: 5.5, status: 'pending' },
+  { id: 'ZS094', type: '咬合桩-素桩', workNo: 'B50', x: 1155.6, y: 195.5, r: 5.5, status: 'pending' },
+  { id: 'ZS095', type: '咬合桩-素桩', workNo: 'B51', x: 1138.0, y: 195.5, r: 5.5, status: 'pending' },
+  { id: 'ZS096', type: '咬合桩-素桩', workNo: 'B52', x: 1120.5, y: 195.4, r: 5.5, status: 'pending' },
+  { id: 'ZS097', type: '咬合桩-素桩', workNo: 'B53', x: 1102.9, y: 195.3, r: 5.5, status: 'pending' },
+  { id: 'ZS098', type: '咬合桩-素桩', workNo: 'B54', x: 1085.4, y: 195.3, r: 5.5, status: 'pending' },
+  { id: 'ZS099', type: '咬合桩-素桩', workNo: 'B55', x: 1067.8, y: 195.2, r: 5.5, status: 'pending' },
+  { id: 'ZS100', type: '咬合桩-素桩', workNo: 'B56', x: 1050.2, y: 195.1, r: 5.5, status: 'pending' },
+  { id: 'ZS101', type: '咬合桩-素桩', workNo: 'B57', x: 1032.7, y: 195.1, r: 5.5, status: 'pending' },
+  { id: 'ZS102', type: '咬合桩-素桩', workNo: 'B58', x: 1015.1, y: 195.0, r: 5.5, status: 'pending' },
+  { id: 'ZS103', type: '咬合桩-素桩', workNo: 'B59', x: 997.5, y: 194.9, r: 5.5, status: 'pending' },
+  { id: 'ZS104', type: '咬合桩-素桩', workNo: 'B60', x: 980.0, y: 194.8, r: 5.5, status: 'pending' },
+  { id: 'ZS105', type: '咬合桩-素桩', workNo: 'B61', x: 962.4, y: 194.8, r: 5.5, status: 'pending' },
+  { id: 'ZS106', type: '咬合桩-素桩', workNo: 'B62', x: 944.9, y: 194.7, r: 5.5, status: 'pending' },
+  { id: 'ZS107', type: '咬合桩-素桩', workNo: 'B63', x: 927.3, y: 194.6, r: 5.5, status: 'pending' },
+  { id: 'ZS108', type: '咬合桩-素桩', workNo: 'B64', x: 909.7, y: 194.6, r: 5.5, status: 'pending' },
+  { id: 'ZS109', type: '咬合桩-素桩', workNo: 'B65', x: 892.2, y: 194.5, r: 5.5, status: 'pending' },
+  { id: 'ZS110', type: '咬合桩-素桩', workNo: 'B66', x: 874.6, y: 194.4, r: 5.5, status: 'pending' },
+  { id: 'ZS111', type: '咬合桩-素桩', workNo: 'B67', x: 857.0, y: 194.4, r: 5.5, status: 'pending' },
+  { id: 'ZS112', type: '咬合桩-素桩', workNo: 'B68', x: 839.5, y: 194.3, r: 5.5, status: 'pending' },
+  { id: 'ZS113', type: '咬合桩-素桩', workNo: 'B69', x: 821.9, y: 194.2, r: 5.5, status: 'pending' },
+  { id: 'ZS114', type: '咬合桩-素桩', workNo: 'B70', x: 804.4, y: 194.2, r: 5.5, status: 'pending' },
+  { id: 'ZS115', type: '咬合桩-素桩', workNo: 'B71', x: 786.8, y: 194.1, r: 5.5, status: 'pending' },
+  { id: 'ZS116', type: '咬合桩-素桩', workNo: 'B72', x: 769.2, y: 194.0, r: 5.5, status: 'pending' },
+  { id: 'ZS117', type: '咬合桩-素桩', workNo: 'B73', x: 751.7, y: 194.0, r: 5.5, status: 'pending' },
+  { id: 'ZS118', type: '咬合桩-素桩', workNo: 'B74', x: 734.1, y: 193.9, r: 5.5, status: 'pending' },
+  { id: 'ZS119', type: '咬合桩-素桩', workNo: 'B75', x: 716.8, y: 196.1, r: 5.5, status: 'pending' },
+  { id: 'ZS120', type: '咬合桩-素桩', workNo: 'B76', x: 699.9, y: 200.7, r: 5.5, status: 'pending' },
+  { id: 'ZS121', type: '咬合桩-素桩', workNo: 'B77', x: 683.2, y: 206.3, r: 5.5, status: 'pending' },
+  { id: 'ZS122', type: '咬合桩-素桩', workNo: 'B78', x: 666.9, y: 212.9, r: 5.5, status: 'pending' },
+  { id: 'ZS123', type: '咬合桩-素桩', workNo: 'B79', x: 651.1, y: 220.4, r: 5.5, status: 'pending' },
+  { id: 'ZS124', type: '咬合桩-素桩', workNo: 'B80', x: 635.6, y: 228.8, r: 5.5, status: 'pending' },
+  { id: 'ZS125', type: '咬合桩-素桩', workNo: 'B81', x: 620.4, y: 237.6, r: 5.5, status: 'pending' },
+  { id: 'ZS126', type: '咬合桩-素桩', workNo: 'B82', x: 603.3, y: 239.9, r: 5.5, status: 'pending' },
+  { id: 'ZS127', type: '咬合桩-素桩', workNo: 'B83', x: 585.8, y: 240.4, r: 5.5, status: 'pending' },
+  { id: 'ZS128', type: '咬合桩-素桩', workNo: 'B84', x: 568.2, y: 240.9, r: 5.5, status: 'pending' },
+  { id: 'ZS129', type: '咬合桩-素桩', workNo: 'B85', x: 550.7, y: 241.4, r: 5.5, status: 'pending' },
+  { id: 'ZS130', type: '咬合桩-素桩', workNo: 'B86', x: 533.1, y: 242.0, r: 5.5, status: 'pending' },
+  { id: 'ZS131', type: '咬合桩-素桩', workNo: 'B87', x: 515.6, y: 242.5, r: 5.5, status: 'pending' },
+  { id: 'ZS132', type: '咬合桩-素桩', workNo: 'B88', x: 498.0, y: 243.0, r: 5.5, status: 'pending' },
+  { id: 'ZS133', type: '咬合桩-素桩', workNo: 'B89', x: 480.4, y: 243.5, r: 5.5, startDate: '2026-07-11', endDate: '2026-07-11', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '20.15', rockDepth: '0.65', rockElev: '14.3', actualLength: '16.35', actualBottomElev: '13.65', status: 'done' },
+  { id: 'ZS134', type: '咬合桩-素桩', workNo: 'B90', x: 462.9, y: 244.0, r: 5.5, startDate: '2026-07-14', endDate: '2026-07-14', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '19.1', rockDepth: '1.1', rockElev: '15.8', actualLength: '15.3', actualBottomElev: '14.7', status: 'done' },
+  { id: 'ZS135', type: '咬合桩-素桩', workNo: 'B91', x: 445.3, y: 244.5, r: 5.5, startDate: '2026-07-12', endDate: '2026-07-12', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '18.9', rockDepth: '1.1', rockElev: '16', actualLength: '15.1', actualBottomElev: '14.9', status: 'done' },
+  { id: 'ZS136', type: '咬合桩-素桩', workNo: 'B92', x: 427.8, y: 245.1, r: 5.5, startDate: '2026-07-14', endDate: '2026-07-15', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '19.15', rockDepth: '1', rockElev: '15.65', actualLength: '15.35', actualBottomElev: '14.65', status: 'done' },
+  { id: 'ZS137', type: '咬合桩-素桩', workNo: 'B93', x: 410.2, y: 245.6, r: 5.5, startDate: '2026-07-11', endDate: '2026-07-12', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '18.22', rockDepth: '1.07', rockElev: '16.65', actualLength: '14.42', actualBottomElev: '15.58', status: 'done' },
+  { id: 'ZS138', type: '咬合桩-素桩', workNo: 'B94', x: 392.7, y: 246.1, r: 5.5, startDate: '2026-07-14', endDate: '2026-07-14', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '16.8', rockDepth: '1', rockElev: '18', actualLength: '13', actualBottomElev: '17', status: 'done' },
+  { id: 'ZS139', type: '咬合桩-素桩', workNo: 'B95', x: 375.1, y: 246.6, r: 5.5, status: 'pending' },
+  { id: 'ZS140', type: '咬合桩-素桩', workNo: 'B96', x: 357.6, y: 247.1, r: 5.5, startDate: '2026-07-12', endDate: '2026-07-12', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '13.8', rockDepth: '1', rockElev: '21', actualLength: '10', actualBottomElev: '20', status: 'done' },
+  { id: 'ZS141', type: '咬合桩-素桩', workNo: 'B97', x: 340.0, y: 247.6, r: 5.5, status: 'pending' },
+  { id: 'ZS142', type: '咬合桩-素桩', workNo: 'B98', x: 322.5, y: 248.2, r: 5.5, status: 'pending' },
+  { id: 'ZS143', type: '咬合桩-素桩', workNo: 'B99', x: 304.9, y: 248.7, r: 5.5, status: 'pending' },
+  { id: 'ZS144', type: '咬合桩-素桩', workNo: 'B100', x: 287.3, y: 249.2, r: 5.5, status: 'pending' },
+  { id: 'ZS145', type: '咬合桩-素桩', workNo: 'B101', x: 269.8, y: 249.7, r: 5.5, status: 'pending' },
+  { id: 'ZS146', type: '咬合桩-素桩', workNo: 'B102', x: 252.2, y: 250.2, r: 5.5, status: 'pending' },
+  { id: 'ZS147', type: '咬合桩-素桩', workNo: 'B103', x: 234.7, y: 250.8, r: 5.5, status: 'pending' },
+  { id: 'ZS148', type: '咬合桩-素桩', workNo: 'B104', x: 217.1, y: 251.3, r: 5.5, status: 'pending' },
+  { id: 'ZS149', type: '咬合桩-素桩', workNo: 'B105', x: 199.6, y: 251.8, r: 5.5, status: 'pending' },
+  { id: 'ZS150', type: '咬合桩-素桩', workNo: 'B106', x: 182.0, y: 252.3, r: 5.5, status: 'pending' },
   { id: 'ZS151', type: '双管旋喷桩', x: 166.6, y: 257.5, r: 4.0, x2: 166.6, y2: 255.3, status: 'pending' },
   { id: 'LZ001', type: '立柱桩', x: 350.8, y: 302.1, r: 5.5, status: 'pending' },
   { id: 'LZ002', type: '立柱桩', x: 245.6, y: 321.0, r: 5.5, status: 'pending' },
@@ -2123,40 +2148,40 @@ const piles = [
   { id: 'LZ025', type: '立柱桩', x: 1206.4, y: 270.7, r: 5.5, status: 'pending' },
   { id: 'LZ026', type: '立柱桩', x: 1109.7, y: 261.1, r: 5.5, status: 'pending' },
   // ---- 工程桩（DXF导入，仿射变换）----
-  { id: 'GC001', type: '工程桩', x: 907.5, y: 335, r: 8.8, status: 'pending' },
-  { id: 'GC002', type: '工程桩', x: 979.1, y: 337.4, r: 6.6, status: 'pending' },
-  { id: 'GC003', type: '工程桩', x: 1089.7, y: 335.6, r: 8.8, status: 'pending' },
-  { id: 'GC004', type: '工程桩', x: 1171.2, y: 335.9, r: 8.8, status: 'pending' },
-  { id: 'GC005', type: '工程桩', x: 993.2, y: 369.9, r: 6.6, status: 'pending' },
-  { id: 'GC006', type: '工程桩', x: 1007.9, y: 399.6, r: 6.6, status: 'pending' },
-  { id: 'GC007', type: '工程桩', x: 1079.9, y: 370.2, r: 6.6, status: 'pending' },
-  { id: 'GC008', type: '工程桩', x: 1065, y: 399.8, r: 6.6, status: 'pending' },
-  { id: 'GC009', type: '工程桩', x: 1170.9, y: 400.7, r: 8.8, status: 'pending' },
-  { id: 'GC010', type: '工程桩', x: 907.1, y: 431, r: 8.8, status: 'pending' },
-  { id: 'GC011', type: '工程桩', x: 976.5, y: 426.9, r: 6.6, status: 'pending' },
-  { id: 'GC012', type: '工程桩', x: 976.4, y: 455.4, r: 6.6, status: 'pending' },
-  { id: 'GC013', type: '工程桩', x: 1020.7, y: 427.1, r: 6.6, status: 'pending' },
-  { id: 'GC014', type: '工程桩', x: 1060.2, y: 427.2, r: 6.6, status: 'pending' },
-  { id: 'GC015', type: '工程桩', x: 1020.6, y: 455.6, r: 6.6, status: 'pending' },
-  { id: 'GC016', type: '工程桩', x: 1060.1, y: 455.7, r: 6.6, status: 'pending' },
-  { id: 'GC017', type: '工程桩', x: 1096.2, y: 427.3, r: 6.6, status: 'pending' },
-  { id: 'GC018', type: '工程桩', x: 1096.1, y: 455.9, r: 6.6, status: 'pending' },
-  { id: 'GC019', type: '工程桩', x: 1168.5, y: 448.4, r: 8.8, status: 'pending' },
-  { id: 'GC020', type: '工程桩', x: 999.9, y: 489.6, r: 8.8, status: 'pending' },
-  { id: 'GC021', type: '工程桩', x: 1072.9, y: 489.8, r: 8.8, status: 'pending' },
-  { id: 'GC022', type: '工程桩', x: 902.1, y: 518.3, r: 8.8, status: 'pending' },
-  { id: 'GC023', type: '工程桩', x: 974, y: 518, r: 8.8, status: 'pending' },
-  { id: 'GC024', type: '工程桩', x: 1005.3, y: 518.1, r: 8.8, status: 'pending' },
-  { id: 'GC025', type: '工程桩', x: 1047.6, y: 518.3, r: 8.8, status: 'pending' },
-  { id: 'GC026', type: '工程桩', x: 1095, y: 518.4, r: 8.8, status: 'pending' },
-  { id: 'GC027', type: '工程桩', x: 1163.9, y: 519.8, r: 8.8, status: 'pending' },
-  { id: 'GC028', type: '工程桩', x: 932.7, y: 562.3, r: 6.6, status: 'pending' },
-  { id: 'GC029', type: '工程桩', x: 932.6, y: 595.2, r: 8.8, status: 'pending' },
-  { id: 'GC030', type: '工程桩', x: 1001.7, y: 587.8, r: 8.8, status: 'pending' },
-  { id: 'GC031', type: '工程桩', x: 1095.6, y: 588.1, r: 8.8, status: 'pending' },
-  { id: 'GC032', type: '工程桩', x: 1162.1, y: 563.1, r: 6.6, status: 'pending' },
-  { id: 'GC033', type: '工程桩', x: 1162, y: 596.1, r: 8.8, status: 'pending' },
-  { id: 'GC034', type: '工程桩', x: 1006.5, y: 337.5, r: 6.6, status: 'pending' },
+  { id: 'GC001', type: '工程桩', workNo: 'Z1', x: 907.5, y: 335, r: 8.8, startDate: '2026-01-25', endDate: '2026-01-27', designTopElev: '27.8', designBottomElev: '6.8', designLength: '21', groundElev: '27.8', holeDepth: '16.6', rockDepth: '4', rockElev: '15.8', actualLength: '16', actualBottomElev: '11.8', status: 'done' },
+  { id: 'GC002', type: '工程桩', workNo: 'Z2', x: 979.1, y: 337.4, r: 6.6, startDate: '2026-01-21', endDate: '2026-01-22', designTopElev: '27.3', designBottomElev: '5.8', designLength: '21.5', groundElev: '27.3', holeDepth: '15.85', rockDepth: '1.8', rockElev: '13.5', actualLength: '15.6', actualBottomElev: '11.7', status: 'done' },
+  { id: 'GC003', type: '工程桩', workNo: 'Z3', x: 1089.7, y: 335.6, r: 8.8, startDate: '2026-06-13', endDate: '2026-06-14', designTopElev: '17.85', designBottomElev: '9.35', designLength: '8.5', groundElev: '27.7', holeDepth: '18.3', rockDepth: '2.6', rockElev: '12.23', actualLength: '8.22', actualBottomElev: '9.63', status: 'done' },
+  { id: 'GC004', type: '工程桩', workNo: 'Z4', x: 1171.2, y: 335.9, r: 8.8, startDate: '2026-06-01', endDate: '2026-06-02', designTopElev: '17.95', designBottomElev: '7.95', designLength: '10', groundElev: '27.47', holeDepth: '18.82', rockDepth: '2.52', rockElev: '11.5', actualLength: '8.97', actualBottomElev: '8.98', status: 'done' },
+  { id: 'GC005', type: '工程桩', workNo: 'Z5', x: 993.2, y: 369.9, r: 6.6, startDate: '2026-05-30', endDate: '2026-05-31', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.45', holeDepth: '17.2', rockDepth: '2.8', rockElev: '13.45', actualLength: '6.05', actualBottomElev: '10.65', status: 'done' },
+  { id: 'GC006', type: '工程桩', workNo: 'Z6', x: 1007.9, y: 399.6, r: 6.6, startDate: '2026-06-02', endDate: '2026-06-03', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.51', holeDepth: '17.02', rockDepth: '2.74', rockElev: '13.42', actualLength: '7.17', actualBottomElev: '10.68', status: 'done' },
+  { id: 'GC007', type: '工程桩', workNo: 'Z7', x: 1079.9, y: 370.2, r: 6.6, startDate: '2026-06-16', endDate: '2026-06-17', designTopElev: '17.85', designBottomElev: '10.85', designLength: '7', groundElev: '27.26', holeDepth: '16.28', rockDepth: '1.85', rockElev: '13.3', actualLength: '6.4', actualBottomElev: '11.45', status: 'done' },
+  { id: 'GC008', type: '工程桩', workNo: 'Z8', x: 1065, y: 399.8, r: 6.6, startDate: '2026-06-10', endDate: '2026-06-11', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.31', holeDepth: '15.79', rockDepth: '2.44', rockElev: '14.29', actualLength: '6', actualBottomElev: '11.85', status: 'done' },
+  { id: 'GC009', type: '工程桩', workNo: 'Z9', x: 1170.9, y: 400.7, r: 8.8, startDate: '2026-06-03', endDate: '2026-06-04', designTopElev: '17.95', designBottomElev: '9.95', designLength: '8', groundElev: '27.33', holeDepth: '17.93', rockDepth: '2.5', rockElev: '12.33', actualLength: '8.12', actualBottomElev: '9.83', status: 'done' },
+  { id: 'GC010', type: '工程桩', workNo: 'Z10', x: 907.1, y: 431, r: 8.8, startDate: '2026-06-17', endDate: '2026-06-19', designTopElev: '17.95', designBottomElev: '9.95', designLength: '8', groundElev: '27.74', holeDepth: '16.13', rockDepth: '3.03', rockElev: '14.9', actualLength: '6.08', actualBottomElev: '11.87', status: 'done' },
+  { id: 'GC011', type: '工程桩', workNo: 'Z11', x: 976.5, y: 426.9, r: 6.6, startDate: '2026-06-11', endDate: '2026-06-11', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.43', holeDepth: '16.2', rockDepth: '2.35', rockElev: '13.98', actualLength: '6.22', actualBottomElev: '11.63', status: 'done' },
+  { id: 'GC012', type: '工程桩', workNo: 'Z12', x: 976.4, y: 455.4, r: 6.6, startDate: '2026-06-22', endDate: '2026-06-25', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.51', holeDepth: '19.43', rockDepth: '9.98', rockElev: '18.45', actualLength: '6.18', actualBottomElev: '8.47', status: 'done' },
+  { id: 'GC013', type: '工程桩', workNo: 'Z13', x: 1020.7, y: 427.1, r: 6.6, startDate: '2026-06-14', endDate: '2026-06-16', designTopElev: '16', designBottomElev: '10', designLength: '6', groundElev: '27.47', holeDepth: '17.8', rockDepth: '4.8', rockElev: '14.73', actualLength: '6.07', actualBottomElev: '9.93', status: 'done' },
+  { id: 'GC014', type: '工程桩', workNo: 'Z14', x: 1060.2, y: 427.2, r: 6.6, startDate: '2026-06-19', endDate: '2026-06-20', designTopElev: '16', designBottomElev: '10', designLength: '6', groundElev: '27.59', holeDepth: '17.88', rockDepth: '4.88', rockElev: '14.71', actualLength: '6.17', actualBottomElev: '9.83', status: 'done' },
+  { id: 'GC015', type: '工程桩', workNo: 'Z15', x: 1020.6, y: 455.6, r: 6.6, startDate: '2026-07-02', endDate: '2026-07-03', designTopElev: '16', designBottomElev: '6', designLength: '10', groundElev: '27.45', holeDepth: '17.83', rockDepth: '5.33', rockElev: '15.3', actualLength: '6.03', actualBottomElev: '9.97', status: 'done' },
+  { id: 'GC016', type: '工程桩', workNo: 'Z16', x: 1060.1, y: 455.7, r: 6.6, startDate: '2026-06-04', endDate: '2026-06-05', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.33', holeDepth: '19.22', rockDepth: '5.82', rockElev: '14.38', actualLength: '6.09', actualBottomElev: '8.56', status: 'done' },
+  { id: 'GC017', type: '工程桩', workNo: 'Z17', x: 1096.2, y: 427.3, r: 6.6, startDate: '2026-06-11', endDate: '2026-06-12', designTopElev: '16', designBottomElev: '10', designLength: '6', groundElev: '27.42', holeDepth: '17.86', rockDepth: '3.52', rockElev: '13.44', actualLength: '6.08', actualBottomElev: '9.92', status: 'done' },
+  { id: 'GC018', type: '工程桩', workNo: 'Z18', x: 1096.1, y: 455.9, r: 6.6, startDate: '2026-07-08', endDate: '2026-07-10', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.55', holeDepth: '19.26', rockDepth: '6.16', rockElev: '14.77', actualLength: '6.04', actualBottomElev: '8.61', status: 'done' },
+  { id: 'GC019', type: '工程桩', workNo: 'Z19', x: 1168.5, y: 448.4, r: 8.8, startDate: '2026-01-23', endDate: '2026-01-24', designTopElev: '27.3', designBottomElev: '4.8', designLength: '22.5', groundElev: '27.3', holeDepth: '16.25', rockDepth: '2.5', rockElev: '14.05', actualLength: '15.75', actualBottomElev: '11.55', status: 'done' },
+  { id: 'GC020', type: '工程桩', workNo: 'Z20', x: 999.9, y: 489.6, r: 8.8, startDate: '2026-07-15', endDate: '2026-07-20', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.31', rockDepth: '8.84', rockElev: '17.39', actualLength: '6.1', actualBottomElev: '8.55', status: 'done' },
+  { id: 'GC021', type: '工程桩', workNo: 'Z21', x: 1072.9, y: 489.8, r: 8.8, status: 'pending' },
+  { id: 'GC022', type: '工程桩', workNo: 'Z22', x: 902.1, y: 518.3, r: 8.8, startDate: '2026-06-21', endDate: '2026-06-22', designTopElev: '17.95', designBottomElev: '10.95', designLength: '7', groundElev: '27.59', holeDepth: '16', rockDepth: '5.04', rockElev: '16.89', actualLength: '6.1', actualBottomElev: '11.85', status: 'done' },
+  { id: 'GC023', type: '工程桩', workNo: 'Z23', x: 974, y: 518, r: 8.8, startDate: '2026-07-03', endDate: '2026-07-06', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.41', holeDepth: '16.05', rockDepth: '4.89', rockElev: '16.59', actualLength: '6.15', actualBottomElev: '11.7', status: 'done' },
+  { id: 'GC024', type: '工程桩', workNo: 'Z24', x: 1005.3, y: 518.1, r: 8.8, startDate: '2026-07-10', endDate: '2026-07-14', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.34', holeDepth: '17', rockDepth: '6.1', rockElev: '16.72', actualLength: '6.08', actualBottomElev: '10.62', status: 'done' },
+  { id: 'GC025', type: '工程桩', workNo: 'Z25', x: 1047.6, y: 518.3, r: 8.8, startDate: '2026-07-06', endDate: '2026-07-08', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.49', holeDepth: '16.2', rockDepth: '4.3', rockElev: '15.9', actualLength: '6.25', actualBottomElev: '11.6', status: 'done' },
+  { id: 'GC026', type: '工程桩', workNo: 'Z26', x: 1095, y: 518.4, r: 8.8, startDate: '2026-07-14', endDate: '2026-07-16', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.44', holeDepth: '16.05', rockDepth: '3.41', rockElev: '15.16', actualLength: '6.1', actualBottomElev: '11.75', status: 'done' },
+  { id: 'GC027', type: '工程桩', workNo: 'Z27', x: 1163.9, y: 519.8, r: 8.8, startDate: '2026-06-28', endDate: '2026-06-29', designTopElev: '17.95', designBottomElev: '8.95', designLength: '9', groundElev: '27.43', holeDepth: '17.38', rockDepth: '2.53', rockElev: '12.75', actualLength: '7.73', actualBottomElev: '10.22', status: 'done' },
+  { id: 'GC028', type: '工程桩', workNo: 'Z28', x: 932.7, y: 562.3, r: 6.6, status: 'pending' },
+  { id: 'GC029', type: '工程桩', workNo: 'Z29', x: 932.6, y: 595.2, r: 8.8, status: 'pending' },
+  { id: 'GC030', type: '工程桩', workNo: 'Z30', x: 1001.7, y: 587.8, r: 8.8, status: 'pending' },
+  { id: 'GC031', type: '工程桩', workNo: 'Z31', x: 1095.6, y: 588.1, r: 8.8, status: 'pending' },
+  { id: 'GC032', type: '工程桩', workNo: 'Z32', x: 1162.1, y: 563.1, r: 6.6, startDate: '2026-01-24', endDate: '2026-01-25', designTopElev: '27.3', designBottomElev: '3.8', designLength: '23.5', groundElev: '27.3', holeDepth: '17.12', rockDepth: '1.82', rockElev: '12.45', actualLength: '16.67', actualBottomElev: '10.63', status: 'done' },
+  { id: 'GC033', type: '工程桩', workNo: 'Z33', x: 1162, y: 596.1, r: 8.8, startDate: '2026-06-30', endDate: '2026-07-02', designTopElev: '17.45', designBottomElev: '6.95', designLength: '10.5', groundElev: '27.23', holeDepth: '18.9', rockDepth: '2.54', rockElev: '11.25', actualLength: '8.74', actualBottomElev: '8.71', status: 'done' },
+  { id: 'GC034', type: '工程桩', workNo: 'Z34', x: 1006.5, y: 337.5, r: 6.6, startDate: '2026-06-12', endDate: '2026-06-13', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.64', holeDepth: '17.38', rockDepth: '2.78', rockElev: '13.29', actualLength: '6.19', actualBottomElev: '10.51', status: 'done' },
   // 箱涵支护桩 - 荤桩
   {id:'XH001-荤', x:593.8, y:156.9, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
   {id:'XH002-荤', x:580, y:165.4, r:5, type:'箱涵支护桩-荤桩', status:'pending'},
@@ -2900,6 +2925,34 @@ function applyDateView(targetDate) {
     });
   });
 
+  // Override pile status based on construction dates (startDate/endDate)
+  piles.forEach(p => {
+    if (p.startDate && p.endDate) {
+      if (targetDate >= p.endDate) {
+        p.status = 'done';
+      } else if (targetDate >= p.startDate && targetDate < p.endDate) {
+        p.status = 'doing';
+      }
+    } else if (p.startDate) {
+      // Only start date set: mark as doing from start date onwards
+      if (targetDate >= p.startDate) {
+        p.status = 'doing';
+      }
+    } else if (p.endDate) {
+      // Only end date set: mark as done from end date onwards
+      if (targetDate >= p.endDate) {
+        p.status = 'done';
+      }
+    }
+  });
+
+  // Micro piles without construction data forced to pending
+  piles.forEach(p => {
+    if (p.type === '微型桩' && !p.startDate && !p.endDate) {
+      p.status = 'pending';
+    }
+  });
+
   refresh();
 }
 
@@ -3119,8 +3172,10 @@ function renderPiles() {
     circle.setAttribute('fill', STATUS_COLORS[p.status]);
     circle.setAttribute('stroke', TYPES[p.type].color);
     circle.setAttribute('stroke-width', '1.5');
-    circle.setAttribute('class', 'pile-circle');
-    circle.setAttribute('opacity', p.status === 'pending' ? '0.35' : '0.85');
+    circle.setAttribute('class', 'pile-circle' + (p.status === 'doing' ? ' doing-flash' : ''));
+    if (p.status !== 'doing') {
+      circle.setAttribute('opacity', p.status === 'pending' ? '0.35' : '0.85');
+    }
     pileGroup.appendChild(circle);
 
     // Larger invisible hitarea for easier hover/click (especially for micro piles)
@@ -3178,7 +3233,7 @@ function renderPiles() {
       showPopup(e, p);
     });
     hitCircle.addEventListener('mouseenter', (e) => {
-      if (!editMode) showSvgTooltip(e, { type: 'pile', id: p.id, pileType: p.type, x: p.x, y: p.y, r: p.r, status: p.status });
+      if (!editMode) showSvgTooltip(e, { type: 'pile', id: p.id, pileType: p.type, x: p.x, y: p.y, r: p.r, status: p.status, startDate: p.startDate, endDate: p.endDate, workNo: p.workNo });
     });
     hitCircle.addEventListener('mouseleave', () => {
       hideSvgTooltip();
@@ -3362,7 +3417,7 @@ function renderBeams() {
     poly.setAttribute('stroke', STATUS_STROKE[bp.status] || STATUS_STROKE.pending);
     poly.setAttribute('stroke-width', '1.5');
     poly.setAttribute('stroke-linejoin', 'round');
-    poly.setAttribute('class', 'beam-polygon');
+    poly.setAttribute('class', 'beam-polygon' + (bp.status === 'doing' ? ' doing-flash' : ''));
     poly.setAttribute('data-id', bp.id);
     poly.setAttribute('pointer-events', 'none');
     poly.style.transition = 'fill 0.3s, stroke 0.3s';
@@ -3533,9 +3588,11 @@ function renderSlabs() {
         rPoly.setAttribute('fill', STATUS_COLORS[region.status]);
         rPoly.setAttribute('stroke', TYPES[slab.type].color);
         rPoly.setAttribute('stroke-width', '1.5');
-        rPoly.setAttribute('class', 'slab-region-drawn');
+        rPoly.setAttribute('class', 'slab-region-drawn' + (region.status === 'doing' ? ' doing-flash' : ''));
         rPoly.setAttribute('data-id', slab.id + '-r' + rIdx);
-        rPoly.setAttribute('opacity', '0.55');
+        if (region.status !== 'doing') {
+          rPoly.setAttribute('opacity', '0.55');
+        }
         rPoly.addEventListener('click', (e) => {
           e.stopPropagation();
           showSlabRegionPopup(e, slab, region);
@@ -3596,7 +3653,8 @@ function showPopup(e, pile) {
   currentTarget = pile;
   const popup = document.getElementById('statusPopup');
   const isPile = TYPES[pile.type] && TYPES[pile.type].category === 'pile';
-  document.getElementById('popupTitle').textContent = `${pile.id} (${pile.type})`;
+  const displayTitle = pile.workNo || pile.pileNo || pile.id;
+  document.getElementById('popupTitle').textContent = `${displayTitle} (${pile.type})`;
   popup.querySelectorAll('.status-option').forEach(opt => {
     opt.classList.toggle('selected', opt.dataset.status === pile.status);
   });
@@ -3608,7 +3666,7 @@ function showPopup(e, pile) {
     bindPileEditEvents(pile);
   } else {
     info.innerHTML = `
-      <div class="popup-info-row"><span class="popup-info-label">ID:</span><span class="popup-info-value">${pile.id}</span></div>
+      <div class="popup-info-row"><span class="popup-info-label">编号:</span><span class="popup-info-value">${pile.workNo || pile.pileNo || pile.id}</span></div>
       <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${pile.type}</span></div>
       <div class="popup-info-row"><span class="popup-info-label">当前状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[pile.status]}">${STATUS_LABELS[pile.status]}</span></div>
     `;
@@ -3619,25 +3677,41 @@ function showPopup(e, pile) {
 }
 
 function buildPileEditForm(pile) {
-  const fields = [
+  const isMicro = pile.type === '微型桩';
+  const fields = isMicro ? [
+    { key: 'pileNo', label: '桩编号', editable: true },
+    { key: 'diameter', label: '孔直径(mm)', editable: true },
+    { key: 'designTopElev', label: '设计桩顶标高', editable: true },
+    { key: 'designLength', label: '设计有效桩长(m)', editable: true },
+    { key: 'groundElev', label: '地面标高', editable: true },
+    { key: 'holeDepth', label: '孔深(m)', editable: true },
+    { key: 'actualLength', label: '有效桩长(m)', editable: true },
+    { key: 'steelPipeLength', label: '钢管插入长度(m)', editable: true },
+    { key: 'startDate', label: '成孔日期', editable: true, type: 'date' },
+    { key: 'endDate', label: '注浆日期', editable: true, type: 'date' }
+  ] : [
     { key: 'pileNo', label: '桩编号(ID)', editable: true },
     { key: 'diameter', label: '桩径(mm)', editable: true },
     { key: 'designLength', label: '设计桩长(m)', editable: true },
     { key: 'designTopElev', label: '设计桩顶标高', editable: true },
-    { key: 'designBottomElev', label: '设计桩底标高', editable: true, auto: '桩顶标高 - 桩长' },
+    { key: 'designBottomElev', label: '设计桩底标高', editable: true },
     { key: 'rockDepth', label: '入岩深度(m)', editable: true },
-    { key: 'rockElev', label: '入岩标高', editable: true, auto: '桩底标高 + 入岩深度' },
+    { key: 'rockElev', label: '入岩标高', editable: true },
     { key: 'actualBottomElev', label: '实际桩底标高', editable: true },
-    { key: 'actualLength', label: '实际桩长(m)', editable: true, auto: '桩顶标高 - 实际桩底标高' }
+    { key: 'actualLength', label: '实际桩长(m)', editable: true },
+    { key: 'startDate', label: '开始施工时间', editable: true, type: 'date' },
+    { key: 'endDate', label: '施工完成时间', editable: true, type: 'date' }
   ];
   let html = '<div class="pile-edit-form">';
   fields.forEach(f => {
-    const val = pile[f.key] !== undefined && pile[f.key] !== '' ? pile[f.key] : '';
-    const autoTag = f.auto ? ` <span class="auto-tag">${f.auto}</span>` : '';
-    if (f.editable) {
-      html += `<div class="popup-info-row"><span class="popup-info-label">${f.label}:</span><input class="pile-input" data-field="${f.key}" value="${val}" placeholder="输入${f.label}">${autoTag}</div>`;
+    let val = pile[f.key] !== undefined && pile[f.key] !== '' ? pile[f.key] : '';
+    if (f.key === 'pileNo' && !val && pile.workNo) val = pile.workNo;
+    if (f.type === 'date') {
+      html += `<div class="popup-info-row"><span class="popup-info-label">${f.label}:</span><input class="pile-input" type="date" data-field="${f.key}" value="${val}"></div>`;
+    } else if (f.editable) {
+      html += `<div class="popup-info-row"><span class="popup-info-label">${f.label}:</span><input class="pile-input" data-field="${f.key}" value="${val}" placeholder="输入${f.label}"></div>`;
     } else {
-      html += `<div class="popup-info-row"><span class="popup-info-label">${f.label}:</span><span class="popup-info-value auto-calc">${val || '-'}</span>${autoTag}</div>`;
+      html += `<div class="popup-info-row"><span class="popup-info-label">${f.label}:</span><span class="popup-info-value auto-calc">${val || '-'}</span></div>`;
     }
   });
   html += `<button class="pile-save-btn" onclick="savePileEdit()">保存</button>`;
@@ -4352,6 +4426,8 @@ function goToday() {
   const todayStr = getTodayStr();
   document.getElementById('dateInput').value = todayStr;
   document.getElementById('dateInput').max = todayStr;
+  // Trigger change so applyDateView runs
+  document.getElementById('dateInput').dispatchEvent(new Event('change'));
 }
 
 // ============================================================
@@ -4906,10 +4982,13 @@ function showSvgTooltip(e, data) {
   const tooltip = document.getElementById('svgTooltip');
   let html = '';
   if (data.type === 'pile') {
+    const displayId = data.workNo || data.id;
     html = `
-      <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.id}</span></div>
+      <div class="tt-row"><span class="tt-label">编号:</span><span class="tt-val">${displayId}</span></div>
       <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.pileType || data.type}</span></div>
       <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.status]}</span></div>
+      ${data.startDate ? `<div class="tt-row"><span class="tt-label">开始:</span><span class="tt-val">${data.startDate}</span></div>` : ''}
+      ${data.endDate ? `<div class="tt-row"><span class="tt-label">完成:</span><span class="tt-val">${data.endDate}</span></div>` : ''}
     `;
   } else if (data.type === 'beam') {
     html = `
@@ -5066,6 +5145,21 @@ init();
 // Replay saved status changes from localStorage
 const todayStr = document.getElementById('dateInput').value;
 if (todayStr) applyDateView(todayStr);
+
+// Auto-scale page to fit screen width
+(function() {
+  const wrap = document.getElementById('scaleWrap');
+  if (!wrap) return;
+  const BASE_WIDTH = 1920;
+  function applyScale() {
+    const scale = window.innerWidth / BASE_WIDTH;
+    wrap.style.transform = 'scale(' + scale + ')';
+    document.body.style.minHeight = (window.innerHeight / scale) + 'px';
+  }
+  applyScale();
+  window.addEventListener('resize', applyScale);
+})();
 </script>
+</div>
 </body>
 </html>
