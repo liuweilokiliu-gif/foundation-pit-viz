@@ -38,7 +38,6 @@
 html, body { overflow-x: hidden; }
 #scaleWrap {
   width: 1920px;
-  transform-origin: top left;
 }
 
 /* Flash animation for "doing" status */
@@ -57,6 +56,8 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  margin: 0;
+  padding: 0;
 }
 
 /* ===== Top Header ===== */
@@ -2414,7 +2415,18 @@ function calcPathLength(points, startIdx, endIdx) {
 // Structure: { year: { '2026': { quarters: { 'Q1': { months: { '1': { weeks: { '1': { items: [{type, planned, unit}] } } } } } } } } }
 let planStore = {};
 let currentPlanLevel = 'week';
-let currentPlanPeriod = { year: 2026, month: 7, week: 28 };
+let currentPlanPeriod;
+// Auto-detect current week from today's date
+(function() {
+  const today = new Date();
+  const jan1 = new Date(today.getFullYear(), 0, 1);
+  const dayOfWeek = jan1.getDay() || 7;
+  const daysToFirstMon = dayOfWeek <= 4 ? 1 - dayOfWeek : 8 - dayOfWeek;
+  const firstMon = new Date(today.getFullYear(), 0, 1 + daysToFirstMon);
+  const diff = today - firstMon;
+  const weekNum = Math.max(1, Math.ceil(diff / (7 * 86400000)));
+  currentPlanPeriod = { year: today.getFullYear(), month: today.getMonth() + 1, week: weekNum };
+})();
 
 function loadPlanStore() {
   try {
@@ -3424,34 +3436,22 @@ function renderBeams() {
         const segGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         segGroup.setAttribute('class', 'crown-segments');
         cb.segments.forEach((seg, segIdx) => {
-          const fromPile = piles.find(p => p.id === seg.from);
-          const toPile = piles.find(p => p.id === seg.to);
-          if (!fromPile || !toPile) return;
-          // Project pile coordinates onto outerPath
-          const fromPt = projectToOuterPath(cb.outerPath, { x: fromPile.x, y: fromPile.y });
-          const toPt = projectToOuterPath(cb.outerPath, { x: toPile.x, y: toPile.y });
-          if (!fromPt || !toPt) return;
-          // Get sub-path between the two projected points
-          const subPath = getSubPathBetweenPoints(cb.outerPath, fromPt, toPt);
-          if (!subPath || subPath.length < 2) return;
-          const pts = subPath.map(p => `${p.x},${p.y}`).join(' ');
-          const segLine = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-          segLine.setAttribute('points', pts);
-          segLine.setAttribute('fill', 'none');
-          segLine.setAttribute('stroke', seg.status === 'done' ? '#4caf50' : '#ff9800');
-          segLine.setAttribute('stroke-width', String(sw + 2));
-          segLine.setAttribute('stroke-linecap', 'round');
-          segLine.setAttribute('opacity', '0.85');
-          segLine.setAttribute('pointer-events', 'stroke');
-          segLine.setAttribute('class', 'crown-segment-line');
-          segLine.setAttribute('data-cb-id', cb.id);
-          segLine.setAttribute('data-seg-idx', String(segIdx));
-          // Click on segment line
-          segLine.addEventListener('click', (e) => {
+          if (!seg.points || seg.points.length < 2) return;
+          const pts = seg.points.map(p => `${p.x},${p.y}`).join(' ');
+          const segPoly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          segPoly.setAttribute('points', pts);
+          segPoly.setAttribute('fill', seg.status === 'done' ? 'rgba(33,150,243,0.6)' : 'rgba(255,152,0,0.6)');
+          segPoly.setAttribute('stroke', seg.status === 'done' ? '#1565c0' : '#e65100');
+          segPoly.setAttribute('stroke-width', '0.5');
+          segPoly.setAttribute('pointer-events', 'fill');
+          segPoly.setAttribute('class', 'crown-segment-line');
+          segPoly.setAttribute('data-cb-id', cb.id);
+          segPoly.setAttribute('data-seg-idx', String(segIdx));
+          segPoly.addEventListener('click', (e) => {
             e.stopPropagation();
             showCrownSegPopup(e, cb.id, segIdx);
           });
-          segGroup.appendChild(segLine);
+          segGroup.appendChild(segPoly);
         });
         cbGroup.appendChild(segGroup);
       }
@@ -4010,8 +4010,8 @@ function showCrownPopup(e, cb, label) {
     segListHtml = '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:6px">';
     segListHtml += '<div style="font-size:11px;color:#aaa;margin-bottom:4px">已完成线段:</div>';
     cb.segments.forEach((s, idx) => {
-      segListHtml += `<div class="crown-seg-item" data-cb-id="${cb.id}" data-seg-idx="${idx}" style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin:2px 0;background:rgba(76,175,80,0.1);border-radius:4px;cursor:pointer;font-size:11px" onclick="showCrownSegPopup(event, '${cb.id}', ${idx})">
-        <span style="color:#4caf50">${s.from} → ${s.to}</span>
+      segListHtml += `<div class="crown-seg-item" data-cb-id="${cb.id}" data-seg-idx="${idx}" style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin:2px 0;background:rgba(33,150,243,0.1);border-radius:4px;cursor:pointer;font-size:11px" onclick="showCrownSegPopup(event, '${cb.id}', ${idx})">
+        <span style="color:#2196f3">${s.from} → ${s.to}</span>
         <span style="color:#bbb">${s.length}m</span>
       </div>`;
     });
@@ -4022,10 +4022,10 @@ function showCrownPopup(e, cb, label) {
     <div class="popup-info-row"><span class="popup-info-label">ID:</span><span class="popup-info-value">${cb.id}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${label}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">总长度:</span><span class="popup-info-value">${cb.totalLength}m</span></div>
-    <div class="popup-info-row"><span class="popup-info-label">已完成:</span><span class="popup-info-value" style="color:#4caf50;font-weight:bold">${completedLength}m / ${cb.totalLength}m</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">已完成:</span><span class="popup-info-value" style="color:#2196f3;font-weight:bold">${completedLength}m / ${cb.totalLength}m</span></div>
     <div class="popup-info-row"><span class="popup-info-label">前序条件:</span><span class="popup-info-value" style="color:var(--status-done)">${isMicro ? '微型桩' : '支护桩'}已完成 ${relatedPiles.filter(p => p.status === 'done').length}/${relatedPiles.length}</span></div>
     ${segListHtml}
-    <button class="pile-save-btn" style="margin-top:10px;width:100%;background:#4caf50;border:none;color:#fff;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer" onclick="enterCrownEditMode('${cb.id}')">编辑进度</button>
+    <button class="pile-save-btn" style="margin-top:10px;width:100%;background:#2196f3;border:none;color:#fff;padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer" onclick="enterCrownEditMode('${cb.id}')">编辑进度</button>
   `;
 
   document.getElementById('popupDeleteSegBtn').style.display = 'none';
@@ -4772,17 +4772,91 @@ function handleCrownPileClick(e, pile) {
     const fromPile = crownEditPileStart;
     const toPile = pile;
 
-    // Calculate distance between pile centers
-    const dx = toPile.x - fromPile.x;
-    const dy = toPile.y - fromPile.y;
-    const length = Math.round(Math.sqrt(dx * dx + dy * dy) * 10) / 10;
+    // Get all done piles for this crown beam type, in their original array order
+    // (piles array is defined in order along the crown beam path)
+    const isMicro = crownEditTarget.thickness < 2.5;
+    const validTypes = isMicro ? ['微型桩'] : ['咬合桩-荤桩', '咬合桩-素桩'];
+    const ordered = piles.filter(p => validTypes.includes(p.type) && p.status === 'done');
 
-    // Create segment
+    const fromIdx = ordered.findIndex(p => p.id === fromPile.id);
+    const toIdx = ordered.findIndex(p => p.id === toPile.id);
+    if (fromIdx === -1 || toIdx === -1) { crownEditPileStart = null; return; }
+
+    const lo = Math.min(fromIdx, toIdx);
+    const hi = Math.max(fromIdx, toIdx);
+    const subPiles = ordered.slice(lo, hi + 1);
+
+    // Calculate halfWidth from outerPath-innerPath average distance
+    let halfWidth = 5;
+    if (crownEditTarget.outerPath && crownEditTarget.innerPath) {
+      let totalDist = 0, count = 0;
+      crownEditTarget.outerPath.forEach(op => {
+        let minD = Infinity;
+        crownEditTarget.innerPath.forEach(ip => {
+          const d = Math.hypot(op.x - ip.x, op.y - ip.y);
+          if (d < minD) minD = d;
+        });
+        totalDist += minD;
+        count++;
+      });
+      halfWidth = count > 0 ? totalDist / count / 2 : 5;
+    }
+
+    // Generate polygon: offset each center point along normal direction
+    function generateBandPoints(centerPts, hw) {
+      if (centerPts.length < 2) return centerPts.map(p => [p]);
+      // Limit halfWidth to 60% of min adjacent distance to avoid overshoot at corners
+      let minAdj = Infinity;
+      for (let i = 1; i < centerPts.length; i++) {
+        const d = Math.hypot(centerPts[i].x - centerPts[i-1].x, centerPts[i].y - centerPts[i-1].y);
+        if (d < minAdj) minAdj = d;
+      }
+      const hwLimit = Math.min(hw, minAdj * 0.6);
+      const upper = [], lower = [];
+      for (let i = 0; i < centerPts.length; i++) {
+        let dx, dy;
+        if (i === 0) {
+          dx = centerPts[1].x - centerPts[0].x;
+          dy = centerPts[1].y - centerPts[0].y;
+        } else if (i === centerPts.length - 1) {
+          dx = centerPts[i].x - centerPts[i-1].x;
+          dy = centerPts[i].y - centerPts[i-1].y;
+        } else {
+          dx = centerPts[i+1].x - centerPts[i-1].x;
+          dy = centerPts[i+1].y - centerPts[i-1].y;
+        }
+        const len = Math.hypot(dx, dy) || 1;
+        // Normal = perpendicular to direction
+        const nx = -dy / len;
+        const ny = dx / len;
+        upper.push({ x: centerPts[i].x + nx * hwLimit, y: centerPts[i].y + ny * hwLimit });
+        lower.push({ x: centerPts[i].x - nx * hwLimit, y: centerPts[i].y - ny * hwLimit });
+      }
+      // Polygon: upper forward + lower reversed (forms closed shape with flat ends)
+      return upper.concat(lower.reverse());
+    }
+
+    const polygonPts = generateBandPoints(subPiles, halfWidth);
+
+    // Calculate length along center line
+    let totalPixelDist = 0;
+    for (let i = 1; i < subPiles.length; i++) {
+      totalPixelDist += Math.hypot(subPiles[i].x - subPiles[i-1].x, subPiles[i].y - subPiles[i-1].y);
+    }
+    const outerLen = crownEditTarget.outerPath.reduce((s, p, i) => {
+      if (i === 0) return s;
+      return s + Math.hypot(p.x - crownEditTarget.outerPath[i-1].x, p.y - crownEditTarget.outerPath[i-1].y);
+    }, 0);
+    const scale = outerLen / (crownEditTarget.totalLength || 1);
+    const length = Math.round(totalPixelDist / scale * 10) / 10;
+
+    // Create segment with polygon points
     const seg = {
       from: fromPile.id,
       to: toPile.id,
       length: length,
-      status: 'done'
+      status: 'done',
+      points: polygonPts
     };
     crownEditTarget.segments.push(seg);
 
@@ -5560,15 +5634,15 @@ init();
 const todayStr = document.getElementById('dateInput').value;
 if (todayStr) applyDateView(todayStr);
 
-// Auto-scale page to fit screen width
+// Auto-scale page to fit screen width using CSS zoom
 (function() {
   const wrap = document.getElementById('scaleWrap');
   if (!wrap) return;
   const BASE_WIDTH = 1920;
   function applyScale() {
     const scale = window.innerWidth / BASE_WIDTH;
-    wrap.style.transform = 'scale(' + scale + ')';
-    document.body.style.minHeight = (window.innerHeight / scale) + 'px';
+    // CSS zoom affects layout, so no overflow issues
+    wrap.style.zoom = scale;
   }
   applyScale();
   window.addEventListener('resize', applyScale);
