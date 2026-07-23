@@ -35,7 +35,7 @@
 
 /* ===== Reset & Base ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { overflow-x: hidden; }
+html, body { overflow: hidden; }
 #scaleWrap {
   width: 1920px;
 }
@@ -5634,18 +5634,34 @@ init();
 const todayStr = document.getElementById('dateInput').value;
 if (todayStr) applyDateView(todayStr);
 
-// Auto-scale page to fit screen width using CSS zoom
+// Auto-scale page to fit screen, rotate on portrait phones
 (function() {
   const wrap = document.getElementById('scaleWrap');
   if (!wrap) return;
   const BASE_WIDTH = 1920;
   function applyScale() {
-    const scale = window.innerWidth / BASE_WIDTH;
-    // CSS zoom affects layout, so no overflow issues
-    wrap.style.zoom = scale;
+    const isPortrait = window.innerWidth < 1024 && window.innerHeight > window.innerWidth;
+    if (isPortrait) {
+      // Portrait phone: rotate 90deg, scale by screen height
+      const effectiveWidth = window.innerHeight;
+      const scale = effectiveWidth / BASE_WIDTH;
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.transform = 'rotate(90deg) scale(' + scale + ')';
+      wrap.style.position = 'absolute';
+      wrap.style.top = '0px';
+      wrap.style.left = window.innerWidth + 'px';
+      wrap.style.zoom = '1';
+    } else {
+      // Normal landscape: just zoom
+      const scale = window.innerWidth / BASE_WIDTH;
+      wrap.style.transform = 'none';
+      wrap.style.position = 'static';
+      wrap.style.zoom = scale;
+    }
   }
   applyScale();
   window.addEventListener('resize', applyScale);
+  window.addEventListener('orientationchange', function() { setTimeout(applyScale, 100); });
 })();
 </script>
 </div>
