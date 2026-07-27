@@ -1378,6 +1378,8 @@ function setupAuthListener() {
       // Now that auth state is resolved, load baseline
       // (logged-in users will sync from cloud, anonymous from localStorage)
       loadBaseline();
+      // Load plan store after Supabase is initialized and auth is resolved
+      loadPlanStore();
       // Also sync pile extended data from cloud for all users
       if (sb) {
         sb.from('pile_ext_data').select('*').eq('project_id', 'meilin').then(({ data, error }) => {
@@ -2438,36 +2440,48 @@ function loadPlanStore() {
   try {
     const saved = localStorage.getItem('planStore');
     if (saved) planStore = JSON.parse(saved);
+    console.log('[DEBUG loadPlanStore] Loaded from localStorage. Keys:', Object.keys(planStore));
   } catch (e) {}
   // Then try to load from Supabase (cloud has priority if available)
   if (sb) {
+    console.log('[DEBUG loadPlanStore] Loading from Supabase...');
     sb.from('project_plan').select('plan_data').eq('project_id', 'meilin').single().then(({ data, error }) => {
       if (error) {
         // "no rows" is fine — just means no cloud data yet
-        if (error.code !== 'PGRST116') console.warn('Supabase plan load error:', error);
+        if (error.code !== 'PGRST116') console.error('[DEBUG loadPlanStore] Supabase read ERROR:', error.message, error.code);
+        else console.log('[DEBUG loadPlanStore] No cloud plan data found (PGRST116)');
         return;
       }
       if (data && data.plan_data) {
         planStore = data.plan_data;
         localStorage.setItem('planStore', JSON.stringify(planStore));
         renderPlanPanel();
-        console.log('Plan data loaded from cloud');
+        console.log('[DEBUG loadPlanStore] Plan data loaded from cloud. Keys:', Object.keys(planStore));
       }
     });
+  } else {
+    console.warn('[DEBUG loadPlanStore] Supabase not initialized (sb is null), skipping cloud load');
   }
 }
 function savePlanStore() {
   if (isReadOnly()) { showReadOnlyTip(); return; }
   localStorage.setItem('planStore', JSON.stringify(planStore));
+  console.log('[DEBUG savePlanStore] Saved to localStorage. Keys:', Object.keys(planStore));
   // Sync to Supabase
   if (sb && currentUser) {
+    console.log('[DEBUG savePlanStore] Writing to Supabase... currentUser:', currentUser.email);
     sb.from('project_plan').upsert({
       project_id: 'meilin',
       plan_data: planStore
     }, { onConflict: 'project_id' }).then(({error}) => {
-      if (error) console.warn('Supabase plan data write error:', error);
-      else console.log('Cloud sync OK (plan data)');
+      if (error) {
+        console.error('[DEBUG savePlanStore] Supabase write ERROR:', error.message, error.code);
+      } else {
+        console.log('[DEBUG savePlanStore] Cloud sync OK (plan data)');
+      }
     });
+  } else {
+    console.warn('[DEBUG savePlanStore] Supabase write SKIPPED — sb:', !!sb, 'currentUser:', !!currentUser);
   }
 }
 
@@ -3260,7 +3274,6 @@ function init() {
   renderBeams();
   updateStats();
   renderHeaderProgress();
-  loadPlanStore();
   // Initialize Supabase and auth BEFORE loading baseline (need currentUser for cloud sync)
   initSupabase();
   setupAuthListener();
