@@ -2869,11 +2869,13 @@ let baseline = {};
 // ---- Persist crown segment definitions to baseline + localStorage + Supabase ----
 function saveCrownSegments(cb) {
   if (!cb) return;
-  const segJson = JSON.stringify(cb.segments || []);
+  const segs = cb.segments || [];
+  const segJson = JSON.stringify(segs);
   baseline[cb.id + '_segments'] = segJson;
   localStorage.setItem('baseline', JSON.stringify(baseline));
   // Also sync to Supabase: store segment definitions with a special target_id
-  if (sb && currentUser) {
+  // Only upsert if there are actual segments to avoid overwriting cloud data with empty array
+  if (sb && currentUser && segs.length > 0) {
     const date = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
     sb.from('project_status').upsert({
       project_id: 'meilin',
@@ -2910,10 +2912,14 @@ async function loadCrownSegmentsFromCloud() {
       if (cb) {
         try {
           const segs = JSON.parse(row.status);
-          if (Array.isArray(segs)) {
+          if (Array.isArray(segs) && segs.length > 0) {
+            // Only overwrite if cloud data is non-empty
             cb.segments = segs;
             baseline[cbId + '_segments'] = row.status;
             updated = true;
+          } else if (Array.isArray(segs) && segs.length === 0 && cb.segments && cb.segments.length > 0) {
+            // Cloud has empty array but local has data — keep local data, skip cloud override
+            console.log('[loadCrownSegmentsFromCloud] Skipping empty cloud data for', cbId, '— local has', cb.segments.length, 'segments');
           }
         } catch (e) { /* skip invalid JSON */ }
       }
@@ -2923,6 +2929,8 @@ async function loadCrownSegmentsFromCloud() {
       const dateInput = document.getElementById('dateInput');
       if (dateInput) applyDateView(dateInput.value);
       updateStats();
+      renderPlanPanel();
+      renderHeaderProgress();
       console.log('Crown segments loaded from cloud');
     }
     return updated;
