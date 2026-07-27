@@ -2525,6 +2525,16 @@ function getWeekOfDate(dateStr) {
   return Math.floor(diffDays / 7) + 1;
 }
 
+// Sync currentPlanPeriod to a given date string
+function syncPlanPeriodToDate(dateStr) {
+  const d = new Date(dateStr);
+  currentPlanPeriod = {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    week: getWeekOfDate(dateStr)
+  };
+}
+
 // Plan categories with correct count functions
 // Get the date range [startStr, endStr] for the current plan period
 function getPlanDateRange() {
@@ -2568,7 +2578,7 @@ const PLAN_CATEGORIES = [
   { key: 'beam_corner', label: '角撑', unit: '根', countFn: () => beamPolygons.filter(bp => bp.type === '角撑' && bp.status === 'done').length },
   { key: 'crown', label: '冠梁', unit: 'm', countFn: () => {
     let done = 0;
-    crownBeams.forEach(cb => { if (cb.segments) cb.segments.forEach(s => { if (s.status === 'done') { if (s.length !== undefined) done += s.length; else done += cb.totalLength * (s.end - s.start) / 100; } }); });
+    crownBeams.forEach(cb => { if (cb.segments) cb.segments.forEach(s => { if ((s.status === 'done' || s.status === 'doing') && isInPlanPeriod(s.endDate)) { if (s.length !== undefined) done += s.length; else done += cb.totalLength * (s.end - s.start) / 100; } }); });
     return Math.round(done * 10) / 10;
   }},
   { key: 'slab', label: '盖板', unit: 'm²', countFn: () => countSlabDone() }
@@ -2884,12 +2894,18 @@ async function loadCrownSegmentsFromCloud() {
     const { data, error } = await sb.from('project_status')
       .select('*')
       .eq('project_id', 'meilin')
-      .like('target_id', '%_segments');
+      .like('target_id', '%_segments')
+      .order('status_date', { ascending: false });
     if (error) throw error;
     if (!data || data.length === 0) return false;
     let updated = false;
+    // Group by cbId, keep only the latest record (first after descending sort)
+    const latestMap = {};
     data.forEach(row => {
       const cbId = row.target_id.replace('_segments', '');
+      if (!latestMap[cbId]) latestMap[cbId] = row;
+    });
+    Object.entries(latestMap).forEach(([cbId, row]) => {
       const cb = crownBeams.find(b => b.id === cbId);
       if (cb) {
         try {
@@ -3114,16 +3130,27 @@ function applyDateView(targetDate) {
     }
   });
 
-  // Crown beam segments: override visibility based on endDate
-  // If a segment has an endDate and targetDate < endDate, hide it (set to pending)
+  // Crown beam segments: override visibility based on startDate/endDate
   crownBeams.forEach(cb => {
     if (cb.segments) {
       cb.segments.forEach(s => {
-        if (s.endDate && targetDate < s.endDate) {
-          s.status = 'pending';
-        } else if (s.endDate && targetDate >= s.endDate) {
-          s.status = 'done';
+        if (s.endDate && s.startDate) {
+          // Both dates set: pending < startDate <= doing < endDate <= done
+          if (targetDate < s.startDate) {
+            s.status = 'pending';
+          } else if (targetDate >= s.startDate && targetDate < s.endDate) {
+            s.status = 'doing';
+          } else if (targetDate >= s.endDate) {
+            s.status = 'done';
+          }
+        } else if (s.endDate) {
+          // Only endDate: pending < endDate <= done
+          s.status = targetDate >= s.endDate ? 'done' : 'pending';
+        } else if (s.startDate) {
+          // Only startDate: pending < startDate <= doing
+          s.status = targetDate >= s.startDate ? 'doing' : 'pending';
         }
+        // If neither date, keep whatever status baseline/snapshots set
       });
     }
   });
@@ -3547,7 +3574,8 @@ function renderBeams() {
           segPoly.setAttribute('stroke', seg.status === 'done' ? '#1565c0' : '#e65100');
           segPoly.setAttribute('stroke-width', '0.5');
           segPoly.setAttribute('pointer-events', 'fill');
-          segPoly.setAttribute('class', 'crown-segment-line');
+          if (seg.status === 'doing') segPoly.setAttribute('class', 'crown-segment-line doing-flash');
+          else segPoly.setAttribute('class', 'crown-segment-line');
           segPoly.setAttribute('data-cb-id', cb.id);
           segPoly.setAttribute('data-seg-idx', String(segIdx));
           segPoly.addEventListener('click', (e) => {
@@ -3584,7 +3612,7 @@ function renderBeams() {
         });
         const label = isMicro ? '微型桩冠梁' : '主冠梁';
         let doneLen = 0;
-        if (cb.segments) cb.segments.forEach(s => { if (s.status === 'done') doneLen += s.length !== undefined ? s.length : 0; });
+        if (cb.segments) cb.segments.forEach(s => { if (s.status === 'done' || s.status === 'doing') doneLen += s.length !== undefined ? s.length : 0; });
         doneLen = Math.round(doneLen * 10) / 10;
         showSvgTooltip(e, { type: 'crown', id: cb.id, label, totalLength: cb.totalLength, thickness: sw, doneLength: doneLen });
       });
@@ -4521,7 +4549,7 @@ function renderOverallProgress() {
   // 梁类：对撑+角撑+冠梁（按米）
   const beamTotalLen = beamPolygons.reduce((s, bp) => s + bp.totalLength, 0) + crownBeams.reduce((s, cb) => s + cb.totalLength, 0);
   let beamDoneLen = beamPolygons.filter(bp => bp.status === 'done').reduce((s, bp) => s + bp.totalLength, 0);
-  crownBeams.forEach(cb => { if (cb.segments) cb.segments.forEach(seg => { if (seg.status === 'done') { beamDoneLen += seg.length !== undefined ? seg.length : cb.totalLength * (seg.end - seg.start) / 100; } }); });
+  crownBeams.forEach(cb => { if (cb.segments) cb.segments.forEach(seg => { if (seg.status === 'done' || seg.status === 'doing') { beamDoneLen += seg.length !== undefined ? seg.length : cb.totalLength * (seg.end - seg.start) / 100; } }); });
   beamDoneLen = Math.round(beamDoneLen * 10) / 10;
   const beamRate = beamTotalLen > 0 ? beamDoneLen / beamTotalLen : 0;
 
@@ -4954,34 +4982,50 @@ function handleCrownPileClick(e, pile) {
     const scale = outerLen / (crownEditTarget.totalLength || 1);
     const length = Math.round(totalPixelDist / scale * 10) / 10;
 
-    // Create segment with polygon points
+    // Create segment with polygon points — initial status: doing (施工中)
     const seg = {
       from: fromPile.id,
       to: toPile.id,
       length: length,
-      status: 'done',
+      status: 'doing',
       points: polygonPts,
-      endDate: document.getElementById('dateInput').value || new Date().toISOString().slice(0, 10)
+      startDate: new Date().toISOString().slice(0, 10),
+      endDate: ''
     };
     crownEditTarget.segments.push(seg);
 
-    // Record change for save/load — use endDate as the status_date
+    // Persist crown segment definitions
     const segIdx = crownEditTarget.segments.length - 1;
-    recordChange(crownEditTarget.id + '_seg_' + segIdx, 'done');
-
-    // Persist crown segment definitions to baseline + localStorage + Supabase
     saveCrownSegments(crownEditTarget);
 
-    // Clear start marker and reset for next segment
+    // Clear start marker, exit edit mode
     crownEditPileStart = null;
-    // Refresh to show new segment
+    exitCrownEditMode();
+
+    // Show segment popup for user to set dates and confirm
     refresh();
-    // Re-show hint after refresh (refresh clears preview but hint is DOM-based, should survive)
-    showCrownEditHint(`已添加: ${fromPile.id} → ${toPile.id} (${length}m，完成日期 ${seg.endDate})，点击第一根已完成的支护桩（起点）`);
+    showCrownSegPopupFromClick(crownEditTarget.id, segIdx);
+
+    // Re-show hint after refresh
+    showCrownEditHint(`已添加: ${fromPile.id} → ${toPile.id} (${length}m)，请在线段弹窗中设置施工日期`);
   }
 }
 
-// ---- Show popup for a crown beam segment (click on green line) ----
+// ---- Show popup for a newly created segment (from edit mode) ----
+function showCrownSegPopupFromClick(cbId, segIdx) {
+  const seg = crownBeams.find(b => b.id === cbId)?.segments[segIdx];
+  if (!seg) return;
+  // Find the polygon element to get position for popup
+  const segEl = document.querySelector(`.crown-segment-line[data-cb-id="${cbId}"][data-seg-idx="${segIdx}"]`);
+  const fakeEvent = {
+    stopPropagation: () => {},
+    clientX: segEl ? segEl.getBoundingClientRect().left + 50 : window.innerWidth / 2,
+    clientY: segEl ? segEl.getBoundingClientRect().top + 20 : window.innerHeight / 2
+  };
+  showCrownSegPopup(fakeEvent, cbId, segIdx);
+}
+
+// ---- Show popup for a crown beam segment (click on segment polygon) ----
 function showCrownSegPopup(e, cbId, segIdx) {
   e.stopPropagation();
   hideSvgTooltip();
@@ -4992,29 +5036,55 @@ function showCrownSegPopup(e, cbId, segIdx) {
   currentTarget = { type: 'crownSegment', cb, seg, segIdx };
   const popup = document.getElementById('statusPopup');
   document.getElementById('popupTitle').textContent = `${cbId} 线段 ${segIdx + 1}`;
-  document.getElementById('popupStatusOptions').style.display = 'none';
 
+  // Show status options (doing / done)
+  const statusOptions = document.getElementById('popupStatusOptions');
+  statusOptions.style.display = '';
+  statusOptions.innerHTML = '';
+  // "施工中" button
+  const doingBtn = document.createElement('div');
+  doingBtn.className = 'status-option' + (seg.status === 'doing' ? ' active' : '');
+  doingBtn.innerHTML = `<div class="status-dot" style="background:var(--status-doing)"></div><span>🔧 施工中</span>`;
+  doingBtn.onclick = () => setCrownSegStatus(cb, segIdx, 'doing');
+  if (seg.status === 'doing') doingBtn.style.outline = '2px solid var(--status-doing)';
+  statusOptions.appendChild(doingBtn);
+  // "已完成" button
+  const doneBtn = document.createElement('div');
+  doneBtn.className = 'status-option' + (seg.status === 'done' ? ' active' : '');
+  doneBtn.innerHTML = `<div class="status-dot" style="background:var(--status-done)"></div><span>✅ 已完成</span>`;
+  doneBtn.onclick = () => setCrownSegStatus(cb, segIdx, 'done');
+  if (seg.status === 'done') doneBtn.style.outline = '2px solid var(--status-done)';
+  statusOptions.appendChild(doneBtn);
+
+  // Info section: segment details + date inputs
   const info = document.getElementById('popupInfo');
   info.style.display = 'block';
+  const todayStr = new Date().toISOString().slice(0, 10);
   info.innerHTML = `
     <div class="popup-info-row"><span class="popup-info-label">起点:</span><span class="popup-info-value">${seg.from}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">终点:</span><span class="popup-info-value">${seg.to}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">长度:</span><span class="popup-info-value" style="color:#4caf50">${seg.length}m</span></div>
-    <div class="popup-info-row"><span class="popup-info-label">状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[seg.status] || '#ccc'}">${STATUS_LABELS[seg.status] || seg.status}</span></div>
-    <div class="popup-info-row"><span class="popup-info-label">完成日期:</span><span class="popup-info-value"><input type="date" id="crownSegEndDate" value="${seg.endDate || ''}" max="${new Date().toISOString().slice(0,10)}" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:13px;"></span></div>
+    <div class="popup-info-row"><span class="popup-info-label">开始日期:</span><span class="popup-info-value"><input type="date" id="crownSegStartDate" value="${seg.startDate || ''}" max="${todayStr}" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:13px;"></span></div>
+    <div class="popup-info-row"><span class="popup-info-label">完成日期:</span><span class="popup-info-value"><input type="date" id="crownSegEndDate" value="${seg.endDate || ''}" max="${todayStr}" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:13px;"></span></div>
   `;
 
-  // Attach date change handler
-  const dateInput = document.getElementById('crownSegEndDate');
-  if (dateInput) {
-    dateInput.addEventListener('change', function() {
-      seg.endDate = this.value;
-      saveCrownSegments(cb);
-      // Re-apply date view to update visibility
-      const di = document.getElementById('dateInput');
-      if (di) applyDateView(di.value);
-    });
-  }
+  // Date change handlers
+  document.getElementById('crownSegStartDate').addEventListener('change', function() {
+    seg.startDate = this.value;
+    saveCrownSegments(cb);
+    const di = document.getElementById('dateInput');
+    if (di) applyDateView(di.value);
+    updateStats();
+    renderHeaderProgress();
+  });
+  document.getElementById('crownSegEndDate').addEventListener('change', function() {
+    seg.endDate = this.value;
+    saveCrownSegments(cb);
+    const di = document.getElementById('dateInput');
+    if (di) applyDateView(di.value);
+    updateStats();
+    renderHeaderProgress();
+  });
 
   // Show delete button
   document.getElementById('popupDeleteSegBtn').style.display = 'block';
@@ -5023,14 +5093,47 @@ function showCrownSegPopup(e, cbId, segIdx) {
   positionPopup(e, popup);
   popup.classList.add('active');
 
-  // Restore status options visibility when popup closes
+  // Restore status options HTML when popup closes
   const observer = new MutationObserver(() => {
     if (!popup.classList.contains('active')) {
-      document.getElementById('popupStatusOptions').style.display = '';
+      statusOptions.innerHTML = '';
       observer.disconnect();
     }
   });
   observer.observe(popup, { attributes: true, attributeFilter: ['class'] });
+}
+
+// ---- Set crown segment status (doing / done) ----
+function setCrownSegStatus(cb, segIdx, newStatus) {
+  if (isReadOnly()) { showReadOnlyTip(); return; }
+  const seg = cb.segments[segIdx];
+  if (!seg) return;
+  seg.status = newStatus;
+  // Auto-set endDate when marking as done
+  if (newStatus === 'done' && !seg.endDate) {
+    seg.endDate = new Date().toISOString().slice(0, 10);
+  }
+  // Auto-set startDate when marking as doing
+  if (newStatus === 'doing' && !seg.startDate) {
+    seg.startDate = new Date().toISOString().slice(0, 10);
+  }
+  saveCrownSegments(cb);
+  const di = document.getElementById('dateInput');
+  if (di) applyDateView(di.value);
+  updateStats();
+  renderHeaderProgress();
+  // Re-open popup to show updated state
+  const popup = document.getElementById('statusPopup');
+  popup.classList.remove('active');
+  setTimeout(() => {
+    const segEl = document.querySelector(`.crown-segment-line[data-cb-id="${cb.id}"][data-seg-idx="${segIdx}"]`);
+    const fakeEvent = {
+      stopPropagation: () => {},
+      clientX: segEl ? segEl.getBoundingClientRect().left + 50 : window.innerWidth / 2,
+      clientY: segEl ? segEl.getBoundingClientRect().top + 20 : window.innerHeight / 2
+    };
+    showCrownSegPopup(fakeEvent, cb.id, segIdx);
+  }, 50);
 }
 
 // ---- Handle Esc key for crown edit mode ----
@@ -5750,7 +5853,10 @@ setTimeout(() => { checkViewportWidth(); resetView(); }, 100);
 goToday();
 document.getElementById('dateInput').addEventListener('change', () => {
   const date = document.getElementById('dateInput').value;
+  // Sync plan period to the selected date
+  syncPlanPeriodToDate(date);
   applyDateView(date);
+  renderPlanPanel();
 });
 init();
 // Replay saved status changes from localStorage
