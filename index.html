@@ -35,7 +35,7 @@
 
 /* ===== Reset & Base ===== */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { overflow: hidden; }
+html, body { overflow-x: hidden; }
 #scaleWrap {
   width: 1920px;
 }
@@ -1440,17 +1440,21 @@ async function clearAllData() {
   // Clear localStorage
   localStorage.removeItem('dateSnapshots');
   localStorage.removeItem('pileExtData');
+  localStorage.removeItem('baseline');
+  localStorage.removeItem('planStore');
   dateSnapshots = {};
+  planStore = {};
   // Reset all items to baseline status
   piles.forEach(p => { p.status = 'pending'; p.pileNo = ''; p.designLength = ''; p.designTopElev = ''; p.designBottomElev = ''; p.rockDepth = ''; p.rockElev = ''; p.actualBottomElev = ''; p.actualLength = ''; p.startDate = ''; p.endDate = ''; });
   beamPolygons.forEach(bp => { bp.status = 'pending'; if (bp.segments) bp.segments.forEach(s => { s.status = 'pending'; }); });
-  crownBeams.forEach(cb => { cb.status = 'pending'; if (cb.segments) cb.segments.forEach(s => { s.status = 'pending'; }); });
+  crownBeams.forEach(cb => { cb.status = 'pending'; cb.segments = []; });
   slabs.forEach(slab => { slab.status = 'pending'; if (slab.regions) slab.regions.forEach(r => { r.status = 'pending'; }); });
   // Clear Supabase
   if (sb) {
     try {
       await sb.from('project_status').delete().eq('project_id', 'meilin');
       await sb.from('pile_ext_data').delete().eq('project_id', 'meilin');
+      await sb.from('project_plan').delete().eq('project_id', 'meilin');
       console.log('Cloud data cleared');
     } catch(e) {
       console.warn('Cloud clear error:', e);
@@ -1459,6 +1463,7 @@ async function clearAllData() {
   refresh();
   updateStats();
   renderHeaderProgress();
+  renderPlanPanel();
 }
 
 function toggleLoginDialog(show) {
@@ -2429,21 +2434,39 @@ let currentPlanPeriod;
 })();
 
 function loadPlanStore() {
+  // First load from localStorage for instant display
   try {
     const saved = localStorage.getItem('planStore');
     if (saved) planStore = JSON.parse(saved);
   } catch (e) {}
+  // Then try to load from Supabase (cloud has priority if available)
+  if (sb) {
+    sb.from('project_plan').select('plan_data').eq('project_id', 'meilin').single().then(({ data, error }) => {
+      if (error) {
+        // "no rows" is fine — just means no cloud data yet
+        if (error.code !== 'PGRST116') console.warn('Supabase plan load error:', error);
+        return;
+      }
+      if (data && data.plan_data) {
+        planStore = data.plan_data;
+        localStorage.setItem('planStore', JSON.stringify(planStore));
+        renderPlanPanel();
+        console.log('Plan data loaded from cloud');
+      }
+    });
+  }
 }
 function savePlanStore() {
   if (isReadOnly()) { showReadOnlyTip(); return; }
   localStorage.setItem('planStore', JSON.stringify(planStore));
   // Sync to Supabase
-  if (sb) {
+  if (sb && currentUser) {
     sb.from('project_plan').upsert({
       project_id: 'meilin',
       plan_data: planStore
     }, { onConflict: 'project_id' }).then(({error}) => {
       if (error) console.warn('Supabase plan data write error:', error);
+      else console.log('Cloud sync OK (plan data)');
     });
   }
 }
@@ -2833,6 +2856,66 @@ function saveBaseline() {
 
 let baseline = {};
 
+// ---- Persist crown segment definitions to baseline + localStorage + Supabase ----
+function saveCrownSegments(cb) {
+  if (!cb) return;
+  const segJson = JSON.stringify(cb.segments || []);
+  baseline[cb.id + '_segments'] = segJson;
+  localStorage.setItem('baseline', JSON.stringify(baseline));
+  // Also sync to Supabase: store segment definitions with a special target_id
+  if (sb && currentUser) {
+    const date = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+    sb.from('project_status').upsert({
+      project_id: 'meilin',
+      target_id: cb.id + '_segments',
+      status: segJson,
+      status_date: date
+    }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
+      if (error) console.warn('Supabase crown segments write error:', error);
+      else console.log('Cloud sync OK (crown segments):', cb.id, (cb.segments || []).length, 'segments');
+    });
+  }
+}
+
+// ---- Load crown segment definitions from Supabase ----
+async function loadCrownSegmentsFromCloud() {
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.from('project_status')
+      .select('*')
+      .eq('project_id', 'meilin')
+      .like('target_id', '%_segments');
+    if (error) throw error;
+    if (!data || data.length === 0) return false;
+    let updated = false;
+    data.forEach(row => {
+      const cbId = row.target_id.replace('_segments', '');
+      const cb = crownBeams.find(b => b.id === cbId);
+      if (cb) {
+        try {
+          const segs = JSON.parse(row.status);
+          if (Array.isArray(segs)) {
+            cb.segments = segs;
+            baseline[cbId + '_segments'] = row.status;
+            updated = true;
+          }
+        } catch (e) { /* skip invalid JSON */ }
+      }
+    });
+    if (updated) {
+      localStorage.setItem('baseline', JSON.stringify(baseline));
+      const dateInput = document.getElementById('dateInput');
+      if (dateInput) applyDateView(dateInput.value);
+      updateStats();
+      console.log('Crown segments loaded from cloud');
+    }
+    return updated;
+  } catch (e) {
+    console.warn('Cloud crown segments load failed:', e);
+    return false;
+  }
+}
+
 async function loadBaselineFromCloud() {
   if (!sb) return false;
   try {
@@ -2840,8 +2923,10 @@ async function loadBaselineFromCloud() {
     if (error) throw error;
     if (!data || data.length === 0) return false;
     // Reconstruct dateSnapshots from cloud data
+    // Skip _segments rows — they are segment definitions, not status changes
     const cloudSnapshots = {};
     data.forEach(row => {
+      if (row.target_id.endsWith('_segments')) return; // skip segment definition rows
       if (!cloudSnapshots[row.status_date]) cloudSnapshots[row.status_date] = [];
       cloudSnapshots[row.status_date].push({ targetId: row.target_id, newStatus: row.status });
     });
@@ -2894,6 +2979,10 @@ function loadBaseline() {
         if (dateInput) applyDateView(dateInput.value);
         updateStats();
       }
+      // Also load crown segment definitions from cloud
+      loadCrownSegmentsFromCloud().then(segOk => {
+        console.log('[DEBUG loadBaseline] Crown segments cloud load:', segOk);
+      });
     });
   }
   console.log('[DEBUG loadBaseline] END. dateSnapshots keys:', Object.keys(dateSnapshots));
@@ -4864,6 +4953,9 @@ function handleCrownPileClick(e, pile) {
     const segIdx = crownEditTarget.segments.length - 1;
     recordChange(crownEditTarget.id + '_seg_' + segIdx, 'done');
 
+    // Persist crown segment definitions to baseline + localStorage + Supabase
+    saveCrownSegments(crownEditTarget);
+
     // Clear start marker and reset for next segment
     crownEditPileStart = null;
     // Refresh to show new segment
@@ -5455,6 +5547,8 @@ function deleteSegment() {
       undoStack.push({ action: 'removeCrownSeg', cbId: cb.id, seg });
       // Record deletion
       recordChange(cb.id + '_seg_' + idx, 'deleted');
+      // Persist updated segment definitions
+      saveCrownSegments(cb);
     }
   }
   document.getElementById('statusPopup').classList.remove('active');
@@ -5634,34 +5728,18 @@ init();
 const todayStr = document.getElementById('dateInput').value;
 if (todayStr) applyDateView(todayStr);
 
-// Auto-scale page to fit screen, rotate on portrait phones
+// Auto-scale page to fit screen width using CSS zoom
 (function() {
   const wrap = document.getElementById('scaleWrap');
   if (!wrap) return;
   const BASE_WIDTH = 1920;
   function applyScale() {
-    const isPortrait = window.innerWidth < 1024 && window.innerHeight > window.innerWidth;
-    if (isPortrait) {
-      // Portrait phone: rotate 90deg, scale by screen height
-      const effectiveWidth = window.innerHeight;
-      const scale = effectiveWidth / BASE_WIDTH;
-      wrap.style.transformOrigin = 'top left';
-      wrap.style.transform = 'rotate(90deg) scale(' + scale + ')';
-      wrap.style.position = 'absolute';
-      wrap.style.top = '0px';
-      wrap.style.left = window.innerWidth + 'px';
-      wrap.style.zoom = '1';
-    } else {
-      // Normal landscape: just zoom
-      const scale = window.innerWidth / BASE_WIDTH;
-      wrap.style.transform = 'none';
-      wrap.style.position = 'static';
-      wrap.style.zoom = scale;
-    }
+    const scale = window.innerWidth / BASE_WIDTH;
+    // CSS zoom affects layout, so no overflow issues
+    wrap.style.zoom = scale;
   }
   applyScale();
   window.addEventListener('resize', applyScale);
-  window.addEventListener('orientationchange', function() { setTimeout(applyScale, 100); });
 })();
 </script>
 </div>
