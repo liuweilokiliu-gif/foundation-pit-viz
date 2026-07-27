@@ -3114,6 +3114,20 @@ function applyDateView(targetDate) {
     }
   });
 
+  // Crown beam segments: override visibility based on endDate
+  // If a segment has an endDate and targetDate < endDate, hide it (set to pending)
+  crownBeams.forEach(cb => {
+    if (cb.segments) {
+      cb.segments.forEach(s => {
+        if (s.endDate && targetDate < s.endDate) {
+          s.status = 'pending';
+        } else if (s.endDate && targetDate >= s.endDate) {
+          s.status = 'done';
+        }
+      });
+    }
+  });
+
   refresh();
 }
 
@@ -4099,9 +4113,10 @@ function showCrownPopup(e, cb, label) {
     segListHtml = '<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.1);padding-top:6px">';
     segListHtml += '<div style="font-size:11px;color:#aaa;margin-bottom:4px">已完成线段:</div>';
     cb.segments.forEach((s, idx) => {
+      const dateStr = s.endDate ? ` (${s.endDate})` : '';
       segListHtml += `<div class="crown-seg-item" data-cb-id="${cb.id}" data-seg-idx="${idx}" style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;margin:2px 0;background:rgba(33,150,243,0.1);border-radius:4px;cursor:pointer;font-size:11px" onclick="showCrownSegPopup(event, '${cb.id}', ${idx})">
         <span style="color:#2196f3">${s.from} → ${s.to}</span>
-        <span style="color:#bbb">${s.length}m</span>
+        <span style="color:#bbb">${s.length}m${dateStr}</span>
       </div>`;
     });
     segListHtml += '</div>';
@@ -4945,11 +4960,12 @@ function handleCrownPileClick(e, pile) {
       to: toPile.id,
       length: length,
       status: 'done',
-      points: polygonPts
+      points: polygonPts,
+      endDate: document.getElementById('dateInput').value || new Date().toISOString().slice(0, 10)
     };
     crownEditTarget.segments.push(seg);
 
-    // Record change for save/load
+    // Record change for save/load — use endDate as the status_date
     const segIdx = crownEditTarget.segments.length - 1;
     recordChange(crownEditTarget.id + '_seg_' + segIdx, 'done');
 
@@ -4961,7 +4977,7 @@ function handleCrownPileClick(e, pile) {
     // Refresh to show new segment
     refresh();
     // Re-show hint after refresh (refresh clears preview but hint is DOM-based, should survive)
-    showCrownEditHint(`已添加: ${fromPile.id} → ${toPile.id} (${length}m)，点击第一根已完成的支护桩（起点）`);
+    showCrownEditHint(`已添加: ${fromPile.id} → ${toPile.id} (${length}m，完成日期 ${seg.endDate})，点击第一根已完成的支护桩（起点）`);
   }
 }
 
@@ -4985,7 +5001,20 @@ function showCrownSegPopup(e, cbId, segIdx) {
     <div class="popup-info-row"><span class="popup-info-label">终点:</span><span class="popup-info-value">${seg.to}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">长度:</span><span class="popup-info-value" style="color:#4caf50">${seg.length}m</span></div>
     <div class="popup-info-row"><span class="popup-info-label">状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[seg.status] || '#ccc'}">${STATUS_LABELS[seg.status] || seg.status}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">完成日期:</span><span class="popup-info-value"><input type="date" id="crownSegEndDate" value="${seg.endDate || ''}" max="${new Date().toISOString().slice(0,10)}" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:13px;"></span></div>
   `;
+
+  // Attach date change handler
+  const dateInput = document.getElementById('crownSegEndDate');
+  if (dateInput) {
+    dateInput.addEventListener('change', function() {
+      seg.endDate = this.value;
+      saveCrownSegments(cb);
+      // Re-apply date view to update visibility
+      const di = document.getElementById('dateInput');
+      if (di) applyDateView(di.value);
+    });
+  }
 
   // Show delete button
   document.getElementById('popupDeleteSegBtn').style.display = 'block';
