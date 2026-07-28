@@ -2976,6 +2976,9 @@ async function loadBaselineFromCloud() {
     const cloudSnapshots = {};
     data.forEach(row => {
       if (row.target_id.endsWith('_segments')) return; // skip segment definition rows
+      // Skip stale crown segment status changes — segment definitions are managed
+      // by saveCrownSegments only, not dateSnapshots
+      if (row.target_id.match(/^(GL\d+)_seg_\d+$/)) return;
       if (!cloudSnapshots[row.status_date]) cloudSnapshots[row.status_date] = [];
       cloudSnapshots[row.status_date].push({ targetId: row.target_id, newStatus: row.status });
     });
@@ -3009,7 +3012,12 @@ function loadBaseline() {
     let dirty = false;
     for (const date in dateSnapshots) {
       const before = dateSnapshots[date].length;
-      dateSnapshots[date] = dateSnapshots[date].filter(e => e && e.targetId);
+      dateSnapshots[date] = dateSnapshots[date].filter(e => {
+        if (!e || !e.targetId) return false;
+        // Remove stale crown segment status changes
+        if (e.targetId.match(/^(GL\d+)_seg_\d+$/)) return false;
+        return true;
+      });
       if (dateSnapshots[date].length === 0) { delete dateSnapshots[date]; }
       if (dateSnapshots[date].length !== before) dirty = true;
     }
@@ -3216,10 +3224,10 @@ function setItemStatus(targetId, newStatus) {
     const cb = crownBeams.find(b => b.id === segMatch[1]);
     if (cb && cb.segments && cb.segments[parseInt(segMatch[2])]) {
       if (newStatus === 'deleted') {
-        // Remove the segment entirely
-        cb.segments.splice(parseInt(segMatch[2]), 1);
-        // Persist the updated segments after deletion
-        saveCrownSegments(cb);
+        // During applyDateView replay, 'deleted' records for crown segments are STALE —
+        // segment definitions are managed by saveCrownSegments, not dateSnapshots.
+        // Skipping deletion here prevents loss of segments loaded from cloud.
+        console.log('[setItemStatus] Skipping stale crown segment deletion for', targetId);
       } else {
         cb.segments[parseInt(segMatch[2])].status = newStatus;
       }
@@ -5720,8 +5728,8 @@ function deleteSegment() {
     if (idx >= 0) {
       cb.segments.splice(idx, 1);
       undoStack.push({ action: 'removeCrownSeg', cbId: cb.id, seg });
-      // Record deletion
-      recordChange(cb.id + '_seg_' + idx, 'deleted');
+      // Crown segment definitions are managed by saveCrownSegments only —
+      // do NOT recordChange('deleted') as it would cause stale replay issues
       // Persist updated segment definitions
       saveCrownSegments(cb);
     }
