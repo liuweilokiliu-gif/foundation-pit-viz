@@ -2887,19 +2887,38 @@ function saveCrownSegments(cb) {
   const segJson = JSON.stringify(segs);
   baseline[cb.id + '_segments'] = segJson;
   localStorage.setItem('baseline', JSON.stringify(baseline));
-  // Also sync to Supabase: store segment definitions with a special target_id
-  // Only upsert if there are actual segments to avoid overwriting cloud data with empty array
+  console.log('[DEBUG saveCrownSegments] Saved to localStorage. cb:', cb.id, 'segs:', segs.length);
+  // Sync to Supabase: use target_id as unique key (no status_date in conflict)
+  // This ensures only ONE row per crown beam, always the latest version
   if (sb && currentUser && segs.length > 0) {
-    const date = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+    console.log('[DEBUG saveCrownSegments] Writing to Supabase... currentUser:', currentUser.email);
     sb.from('project_status').upsert({
       project_id: 'meilin',
       target_id: cb.id + '_segments',
       status: segJson,
-      status_date: date
-    }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
-      if (error) console.warn('Supabase crown segments write error:', error);
-      else console.log('Cloud sync OK (crown segments):', cb.id, (cb.segments || []).length, 'segments');
+      status_date: new Date().toISOString().slice(0, 10)  // actual date, not view date
+    }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
+      if (error) {
+        console.error('[DEBUG saveCrownSegments] Supabase write ERROR:', error.message, error.code);
+      } else {
+        console.log('[DEBUG saveCrownSegments] Cloud sync OK:', cb.id, segs.length, 'segments');
+      }
     });
+  } else if (segs.length === 0) {
+    // Segments empty (all deleted) — still need to sync to cloud
+    if (sb && currentUser) {
+      sb.from('project_status').upsert({
+        project_id: 'meilin',
+        target_id: cb.id + '_segments',
+        status: '[]',
+        status_date: new Date().toISOString().slice(0, 10)
+      }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
+        if (error) console.error('[DEBUG saveCrownSegments] Supabase write ERROR (empty):', error.message);
+        else console.log('[DEBUG saveCrownSegments] Cloud sync OK (empty):', cb.id);
+      });
+    }
+  } else {
+    console.warn('[DEBUG saveCrownSegments] Supabase write SKIPPED — sb:', !!sb, 'currentUser:', !!currentUser);
   }
 }
 
@@ -2926,25 +2945,17 @@ async function loadCrownSegmentsFromCloud() {
       if (cb) {
         try {
           const segs = JSON.parse(row.status);
-          if (Array.isArray(segs) && segs.length > 0) {
-            // Only overwrite if cloud data is non-empty
+          if (Array.isArray(segs)) {
+            console.log('[loadCrownSegmentsFromCloud] Loading', cbId, 'from cloud:', segs.length, 'segments');
             cb.segments = segs;
             baseline[cbId + '_segments'] = row.status;
             updated = true;
-          } else if (Array.isArray(segs) && segs.length === 0 && cb.segments && cb.segments.length > 0) {
-            // Cloud has empty array but local has data — keep local data, skip cloud override
-            console.log('[loadCrownSegmentsFromCloud] Skipping empty cloud data for', cbId, '— local has', cb.segments.length, 'segments');
           }
         } catch (e) { /* skip invalid JSON */ }
       }
     });
     if (updated) {
       localStorage.setItem('baseline', JSON.stringify(baseline));
-      const dateInput = document.getElementById('dateInput');
-      if (dateInput) applyDateView(dateInput.value);
-      updateStats();
-      renderPlanPanel();
-      renderHeaderProgress();
       console.log('Crown segments loaded from cloud');
     }
     return updated;
@@ -3012,14 +3023,16 @@ function loadBaseline() {
     console.log('[DEBUG loadBaseline] Loading from cloud...');
     loadBaselineFromCloud().then(ok => {
       console.log('[DEBUG loadBaseline] Cloud load result:', ok);
-      if (ok) {
+      // Load crown segment definitions FIRST, then apply date view
+      // This ensures segments are available when applyDateView runs
+      loadCrownSegmentsFromCloud().then(segOk => {
+        console.log('[DEBUG loadBaseline] Crown segments cloud load:', segOk);
+        // Now apply date view with all data loaded
         const dateInput = document.getElementById('dateInput');
         if (dateInput) applyDateView(dateInput.value);
         updateStats();
-      }
-      // Also load crown segment definitions from cloud
-      loadCrownSegmentsFromCloud().then(segOk => {
-        console.log('[DEBUG loadBaseline] Crown segments cloud load:', segOk);
+        renderPlanPanel();
+        renderHeaderProgress();
       });
     });
   }
@@ -3108,7 +3121,12 @@ function applyDateView(targetDate) {
     // Restore segment definitions from baseline
     const segData = baseline[cb.id + '_segments'];
     if (segData) {
-      try { cb.segments = JSON.parse(segData); } catch(e) { cb.segments = []; }
+      try {
+        const parsed = JSON.parse(segData);
+        // Only restore if baseline has actual segment data
+        // (empty array means segments were never created or all deleted)
+        cb.segments = parsed;
+      } catch(e) { cb.segments = []; }
     }
     // Apply segment statuses
     if (cb.segments) cb.segments.forEach((s, i) => { s.status = baseline[cb.id + '_seg_' + i] || 'pending'; });
@@ -3200,6 +3218,8 @@ function setItemStatus(targetId, newStatus) {
       if (newStatus === 'deleted') {
         // Remove the segment entirely
         cb.segments.splice(parseInt(segMatch[2]), 1);
+        // Persist the updated segments after deletion
+        saveCrownSegments(cb);
       } else {
         cb.segments[parseInt(segMatch[2])].status = newStatus;
       }
@@ -5004,13 +5024,14 @@ function handleCrownPileClick(e, pile) {
     const length = Math.round(totalPixelDist / scale * 10) / 10;
 
     // Create segment with polygon points — initial status: doing (施工中)
+    const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
     const seg = {
       from: fromPile.id,
       to: toPile.id,
       length: length,
       status: 'doing',
       points: polygonPts,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: viewDate,
       endDate: ''
     };
     crownEditTarget.segments.push(seg);
@@ -5129,14 +5150,15 @@ function setCrownSegStatus(cb, segIdx, newStatus) {
   if (isReadOnly()) { showReadOnlyTip(); return; }
   const seg = cb.segments[segIdx];
   if (!seg) return;
+  const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
   seg.status = newStatus;
   // Auto-set endDate when marking as done
   if (newStatus === 'done' && !seg.endDate) {
-    seg.endDate = new Date().toISOString().slice(0, 10);
+    seg.endDate = viewDate;
   }
   // Auto-set startDate when marking as doing
   if (newStatus === 'doing' && !seg.startDate) {
-    seg.startDate = new Date().toISOString().slice(0, 10);
+    seg.startDate = viewDate;
   }
   saveCrownSegments(cb);
   const di = document.getElementById('dateInput');
