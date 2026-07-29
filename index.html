@@ -2911,18 +2911,20 @@ function saveCrownSegments(cb) {
   const segs = cb.segments || [];
   const segJson = JSON.stringify(segs);
   baseline[cb.id + '_segments'] = segJson;
+  // Also update individual segment status entries in baseline so they're not stale
+  segs.forEach((s, i) => { baseline[cb.id + '_seg_' + i] = s.status; });
   localStorage.setItem('baseline', JSON.stringify(baseline));
-  console.log('[DEBUG saveCrownSegments] Saved to localStorage. cb:', cb.id, 'segs:', segs.length);
-  // Sync to Supabase: use target_id as unique key (no status_date in conflict)
-  // This ensures only ONE row per crown beam, always the latest version
+  console.log('[DEBUG saveCrownSegments] Saved to localStorage. cb:', cb.id, 'segs:', segs.length, 'statuses:', segs.map(s => s.status + '/' + (s.endDate||'')));
+  // Sync to Supabase: include status_date in conflict clause to match table constraint
+  const todayDate = new Date().toISOString().slice(0, 10);
   if (sb && currentUser && segs.length > 0) {
     console.log('[DEBUG saveCrownSegments] Writing to Supabase... currentUser:', currentUser.email);
     sb.from('project_status').upsert({
       project_id: 'meilin',
       target_id: cb.id + '_segments',
       status: segJson,
-      status_date: new Date().toISOString().slice(0, 10)  // actual date, not view date
-    }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
+      status_date: todayDate
+    }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
       if (error) {
         console.error('[DEBUG saveCrownSegments] Supabase write ERROR:', error.message, error.code);
       } else {
@@ -2936,8 +2938,8 @@ function saveCrownSegments(cb) {
         project_id: 'meilin',
         target_id: cb.id + '_segments',
         status: '[]',
-        status_date: new Date().toISOString().slice(0, 10)
-      }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
+        status_date: todayDate
+      }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
         if (error) console.error('[DEBUG saveCrownSegments] Supabase write ERROR (empty):', error.message);
         else console.log('[DEBUG saveCrownSegments] Cloud sync OK (empty):', cb.id);
       });
@@ -2971,9 +2973,16 @@ async function loadCrownSegmentsFromCloud() {
         try {
           const segs = JSON.parse(row.status);
           if (Array.isArray(segs)) {
-            console.log('[loadCrownSegmentsFromCloud] Loading', cbId, 'from cloud:', segs.length, 'segments');
+            // Do NOT overwrite local data with empty cloud data
+            if (segs.length === 0 && cb.segments && cb.segments.length > 0) {
+              console.log('[loadCrownSegmentsFromCloud] SKIP empty cloud data for', cbId, '(local has', cb.segments.length, 'segments)');
+              return;
+            }
+            console.log('[loadCrownSegmentsFromCloud] Loading', cbId, 'from cloud:', segs.length, 'segments, statuses:', segs.map(s => s.status + '/' + (s.endDate||'')));
             cb.segments = segs;
             baseline[cbId + '_segments'] = row.status;
+            // Also update individual baseline entries
+            segs.forEach((s, i) => { baseline[cbId + '_seg_' + i] = s.status; });
             updated = true;
           }
         } catch (e) { /* skip invalid JSON */ }
@@ -3162,8 +3171,10 @@ function applyDateView(targetDate) {
         cb.segments = parsed;
       } catch(e) { cb.segments = []; }
     }
-    // Apply segment statuses
-    if (cb.segments) cb.segments.forEach((s, i) => { s.status = baseline[cb.id + '_seg_' + i] || 'pending'; });
+    // Do NOT override segment status from baseline individual entries —
+    // those are stale (only set once in saveBaseline, never updated by setCrownSegStatus).
+    // The segment JSON (baseline[cb.id + '_segments']) already has the correct status.
+    // Date-based override below will further refine based on startDate/endDate.
   });
   slabs.forEach(slab => { slab.status = baseline[slab.id] || 'pending'; if (slab.regions) slab.regions.forEach((r, i) => { r.status = baseline[slab.id + '_r_' + i] || 'pending'; }); });
 
@@ -3208,24 +3219,38 @@ function applyDateView(targetDate) {
   crownBeams.forEach(cb => {
     if (cb.segments) {
       cb.segments.forEach(s => {
-        if (s.endDate && s.startDate) {
+        // Use effective endDate: if empty string, treat as undefined
+        const effEnd = s.endDate || undefined;
+        const effStart = s.startDate || undefined;
+        if (effEnd && effStart) {
           // Both dates set: pending < startDate <= doing < endDate <= done
-          if (targetDate < s.startDate) {
+          if (targetDate < effStart) {
             s.status = 'pending';
-          } else if (targetDate >= s.startDate && targetDate < s.endDate) {
+          } else if (targetDate >= effStart && targetDate < effEnd) {
             s.status = 'doing';
-          } else if (targetDate >= s.endDate) {
+          } else if (targetDate >= effEnd) {
             s.status = 'done';
           }
-        } else if (s.endDate) {
+        } else if (effEnd) {
           // Only endDate: pending < endDate <= done
-          s.status = targetDate >= s.endDate ? 'done' : 'pending';
-        } else if (s.startDate) {
-          // Only startDate: pending < startDate <= doing
-          s.status = targetDate >= s.startDate ? 'doing' : 'pending';
+          s.status = targetDate >= effEnd ? 'done' : 'pending';
+        } else if (effStart) {
+          // Only startDate: if status was already 'done' from JSON, keep it
+          if (s.status === 'done') {
+            // Keep done — user explicitly marked it, don't revert to doing
+          } else {
+            s.status = targetDate >= effStart ? 'doing' : 'pending';
+          }
         }
-        // If neither date, keep whatever status baseline/snapshots set
+        // If neither date, keep whatever status was in the segment JSON
       });
+    }
+  });
+
+  // Debug: log final crown segment statuses
+  crownBeams.forEach(cb => {
+    if (cb.segments && cb.segments.length > 0) {
+      console.log('[DEBUG applyDateView] FINAL', cb.id, 'segments:', cb.segments.map((s,i) => `seg${i}:${s.status}/start=${s.startDate||'-'}/end=${s.endDate||'-'}`));
     }
   });
 
@@ -5144,9 +5169,12 @@ function showCrownSegPopup(e, cbId, segIdx) {
     <div class="popup-info-row"><span class="popup-info-label">完成日期:</span><span class="popup-info-value"><input type="date" id="crownSegEndDate" value="${seg.endDate || ''}" max="${todayStr}" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:3px 6px;border-radius:4px;font-size:13px;"></span></div>
   `;
 
-  // Date change handlers
+  // Date change handlers — always read from cb.segments[segIdx] instead of closure seg,
+  // because applyDateView replaces cb.segments with new objects, making seg stale.
   document.getElementById('crownSegStartDate').addEventListener('change', function() {
-    seg.startDate = this.value;
+    const currentSeg = cb.segments[segIdx];
+    if (!currentSeg) return;
+    currentSeg.startDate = this.value;
     saveCrownSegments(cb);
     const di = document.getElementById('dateInput');
     if (di) applyDateView(di.value);
@@ -5154,7 +5182,10 @@ function showCrownSegPopup(e, cbId, segIdx) {
     renderHeaderProgress();
   });
   document.getElementById('crownSegEndDate').addEventListener('change', function() {
-    seg.endDate = this.value;
+    const currentSeg = cb.segments[segIdx];
+    if (!currentSeg) return;
+    currentSeg.endDate = this.value;
+    console.log('[DEBUG crownSegEndDate change] Set endDate to', this.value, 'for seg', segIdx);
     saveCrownSegments(cb);
     const di = document.getElementById('dateInput');
     if (di) applyDateView(di.value);
@@ -5185,15 +5216,24 @@ function setCrownSegStatus(cb, segIdx, newStatus) {
   const seg = cb.segments[segIdx];
   if (!seg) return;
   const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+  console.log('[DEBUG setCrownSegStatus] BEFORE:', cb.id, 'seg', segIdx, 'status:', seg.status, 'startDate:', seg.startDate, 'endDate:', seg.endDate, '→ newStatus:', newStatus, 'viewDate:', viewDate);
   seg.status = newStatus;
   // Auto-set endDate when marking as done
   if (newStatus === 'done' && !seg.endDate) {
     seg.endDate = viewDate;
+    console.log('[DEBUG setCrownSegStatus] Set endDate to', viewDate);
   }
   // Auto-set startDate when marking as doing
   if (newStatus === 'doing' && !seg.startDate) {
     seg.startDate = viewDate;
+    console.log('[DEBUG setCrownSegStatus] Set startDate to', viewDate);
   }
+  // When switching from done to doing, clear endDate so date-override doesn't force done
+  if (newStatus === 'doing' && seg.endDate) {
+    console.log('[DEBUG setCrownSegStatus] Clearing endDate for doing status');
+    seg.endDate = '';
+  }
+  console.log('[DEBUG setCrownSegStatus] AFTER:', cb.id, 'seg', segIdx, 'status:', seg.status, 'startDate:', seg.startDate, 'endDate:', seg.endDate);
   saveCrownSegments(cb);
   const di = document.getElementById('dateInput');
   if (di) applyDateView(di.value);
