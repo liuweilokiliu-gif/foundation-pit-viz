@@ -4234,19 +4234,22 @@ function showBeamPolygonPopup(e, bp) {
   const popup = document.getElementById('statusPopup');
   const popupInfo = document.getElementById('popupInfo');
   document.getElementById('popupTitle').textContent = `${bp.id} (${bp.type})`;
-  // Hide status option buttons (we use the form's date fields for status)
+  // Show status option buttons — user can click to set status directly
   const statusOptions = document.getElementById('popupStatusOptions');
   if (!statusOptions.dataset.originalHtml) {
     statusOptions.dataset.originalHtml = statusOptions.innerHTML;
   }
-  statusOptions.style.display = 'none';
+  statusOptions.style.display = '';
+  // Highlight current status
+  statusOptions.querySelectorAll('.status-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.status === bp.status);
+  });
   popupInfo.style.display = 'block';
   const todayStr = new Date().toISOString().slice(0, 10);
   popupInfo.innerHTML = `
     <div class="popup-info-row"><span class="popup-info-label">梁ID:</span><span class="popup-info-value">${bp.id}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${bp.type}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">总长度:</span><span class="popup-info-value">${bp.totalLength}m</span></div>
-    <div class="popup-info-row"><span class="popup-info-label">当前状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[bp.status]}">${STATUS_LABELS[bp.status]}</span></div>
     <div class="popup-info-row"><span class="popup-info-label">截面尺寸:</span><input class="pile-input" data-field="sectionSize" value="${bp.sectionSize || ''}" placeholder="如 800×800mm"></div>
     <div class="popup-info-row"><span class="popup-info-label">梁顶标高:</span><input class="pile-input" data-field="topElev" value="${bp.topElev || ''}" placeholder="如 25.80"></div>
     <div class="popup-info-row"><span class="popup-info-label">开始施工时间:</span><input class="pile-input" type="date" data-field="startDate" value="${bp.startDate || ''}" max="${todayStr}"></div>
@@ -4264,14 +4267,6 @@ function showBeamPolygonPopup(e, bp) {
   document.getElementById('popupDeleteSegBtn').style.display = 'none';
   positionPopup(e, popup);
   popup.classList.add('active');
-  // Restore status options when popup closes
-  const observer = new MutationObserver(() => {
-    if (!popup.classList.contains('active')) {
-      statusOptions.style.display = '';
-      observer.disconnect();
-    }
-  });
-  observer.observe(popup, { attributes: true, attributeFilter: ['class'] });
 }
 
 function saveBeamEdit() {
@@ -4505,8 +4500,25 @@ function setStatus(status) {
     undoStack.push({ action: 'changeCrownSegStatus', cbId: currentTarget.cb.id, seg: currentTarget.seg, oldStatus });
     recordChange(getItemIdFromTarget(currentTarget), status);
   } else if (currentTarget.type === 'beamPolygon') {
-    currentTarget.bp.status = status;
+    const bp = currentTarget.bp;
+    const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+    bp.status = status;
+    // Auto-set dates based on status
+    if (status === 'done' && !bp.endDate) {
+      bp.endDate = viewDate;
+    }
+    if (status === 'doing' && !bp.startDate) {
+      bp.startDate = viewDate;
+    }
+    if (status === 'doing' && bp.endDate) {
+      bp.endDate = '';  // clear endDate when reverting to doing
+    }
+    if (status === 'pending') {
+      bp.startDate = '';
+      bp.endDate = '';
+    }
     recordChange(getItemIdFromTarget(currentTarget), status);
+    saveBeamData();
   } else {
     const oldStatus = currentTarget.status;
     currentTarget.status = status;
