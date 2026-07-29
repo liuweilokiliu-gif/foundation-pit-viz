@@ -4522,8 +4522,24 @@ function setStatus(status) {
   } else {
     const oldStatus = currentTarget.status;
     currentTarget.status = status;
+    const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+    // Auto-set dates based on status (same logic as beam polygons)
+    if (status === 'done' && !currentTarget.endDate) {
+      currentTarget.endDate = viewDate;
+    }
+    if (status === 'doing' && !currentTarget.startDate) {
+      currentTarget.startDate = viewDate;
+    }
+    if (status === 'doing' && currentTarget.endDate) {
+      currentTarget.endDate = '';  // clear endDate when reverting to doing
+    }
+    if (status === 'pending') {
+      currentTarget.startDate = '';
+      currentTarget.endDate = '';
+    }
     undoStack.push({ action: 'changePileStatus', pileId: currentTarget.id, oldStatus });
     recordChange(getItemIdFromTarget(currentTarget), status);
+    savePileData();
   }
   document.getElementById('statusPopup').classList.remove('active');
   document.getElementById('popupDeleteSegBtn').style.display = 'none';
