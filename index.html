@@ -1380,6 +1380,8 @@ function setupAuthListener() {
       loadBaseline();
       // Load plan store after Supabase is initialized and auth is resolved
       loadPlanStore();
+      // Load beam ext data from localStorage first (instant display)
+      loadBeamExtData();
       // Also sync pile extended data from cloud for all users
       if (sb) {
         sb.from('pile_ext_data').select('*').eq('project_id', 'meilin').then(({ data, error }) => {
@@ -1405,6 +1407,23 @@ function setupAuthListener() {
               }
             });
             console.log('[DEBUG] Loaded pile_ext_data from cloud:', data.length, 'rows');
+          }
+        });
+        // Sync beam ext data from cloud
+        sb.from('beam_ext_data').select('*').eq('project_id', 'meilin').then(({ data, error }) => {
+          if (!error && data && data.length > 0) {
+            data.forEach(row => {
+              const bp = beamPolygons.find(b => b.id === row.beam_id);
+              if (bp) {
+                if (row.section_size) bp.sectionSize = row.section_size;
+                if (row.top_elev) bp.topElev = row.top_elev;
+                if (row.start_date) bp.startDate = row.start_date;
+                if (row.end_date) bp.endDate = row.end_date;
+              }
+            });
+            console.log('[DEBUG] Loaded beam_ext_data from cloud:', data.length, 'rows');
+            const di = document.getElementById('dateInput');
+            if (di) applyDateView(di.value);
           }
         });
       }
@@ -1442,13 +1461,14 @@ async function clearAllData() {
   // Clear localStorage
   localStorage.removeItem('dateSnapshots');
   localStorage.removeItem('pileExtData');
+  localStorage.removeItem('beamExtData');
   localStorage.removeItem('baseline');
   localStorage.removeItem('planStore');
   dateSnapshots = {};
   planStore = {};
   // Reset all items to baseline status
   piles.forEach(p => { p.status = 'pending'; p.pileNo = ''; p.designLength = ''; p.designTopElev = ''; p.designBottomElev = ''; p.rockDepth = ''; p.rockElev = ''; p.actualBottomElev = ''; p.actualLength = ''; p.startDate = ''; p.endDate = ''; });
-  beamPolygons.forEach(bp => { bp.status = 'pending'; if (bp.segments) bp.segments.forEach(s => { s.status = 'pending'; }); });
+  beamPolygons.forEach(bp => { bp.status = 'pending'; bp.sectionSize = ''; bp.topElev = ''; bp.startDate = ''; bp.endDate = ''; if (bp.segments) bp.segments.forEach(s => { s.status = 'pending'; }); });
   crownBeams.forEach(cb => { cb.status = 'pending'; cb.segments = []; });
   slabs.forEach(slab => { slab.status = 'pending'; if (slab.regions) slab.regions.forEach(r => { r.status = 'pending'; }); });
   // Clear Supabase
@@ -1456,6 +1476,7 @@ async function clearAllData() {
     try {
       await sb.from('project_status').delete().eq('project_id', 'meilin');
       await sb.from('pile_ext_data').delete().eq('project_id', 'meilin');
+      await sb.from('beam_ext_data').delete().eq('project_id', 'meilin');
       await sb.from('project_plan').delete().eq('project_id', 'meilin');
       console.log('Cloud data cleared');
     } catch(e) {
@@ -1592,6 +1613,18 @@ function initPileData() {
     if (ext.steelPipeLength !== undefined && ext.steelPipeLength !== '') p.steelPipeLength = ext.steelPipeLength;
     if (ext.bearingStratum !== undefined && ext.bearingStratum !== '') p.bearingStratum = ext.bearingStratum;
   });
+}
+
+function loadBeamExtData() {
+  const savedData = JSON.parse(localStorage.getItem('beamExtData') || '{}');
+  beamPolygons.forEach(bp => {
+    const ext = savedData[bp.id] || {};
+    if (ext.sectionSize) bp.sectionSize = ext.sectionSize;
+    if (ext.topElev) bp.topElev = ext.topElev;
+    if (ext.startDate) bp.startDate = ext.startDate;
+    if (ext.endDate) bp.endDate = ext.endDate;
+  });
+  console.log('[DEBUG loadBeamExtData] Loaded from localStorage, beams with data:', Object.keys(savedData).length);
 }
 
 function savePileData() {
@@ -3254,6 +3287,25 @@ function applyDateView(targetDate) {
     }
   });
 
+  // Beam polygons: override status based on startDate/endDate
+  beamPolygons.forEach(bp => {
+    const effEnd = bp.endDate || undefined;
+    const effStart = bp.startDate || undefined;
+    if (effEnd && effStart) {
+      if (targetDate >= effEnd) {
+        bp.status = 'done';
+      } else if (targetDate >= effStart) {
+        bp.status = 'doing';
+      } else {
+        bp.status = 'pending';
+      }
+    } else if (effEnd) {
+      bp.status = targetDate >= effEnd ? 'done' : 'pending';
+    } else if (effStart) {
+      bp.status = targetDate >= effStart ? 'doing' : 'pending';
+    }
+  });
+
   refresh();
 }
 
@@ -4182,13 +4234,90 @@ function showBeamPolygonPopup(e, bp) {
   const popup = document.getElementById('statusPopup');
   const popupInfo = document.getElementById('popupInfo');
   document.getElementById('popupTitle').textContent = `${bp.id} (${bp.type})`;
-  popup.querySelectorAll('.status-option').forEach(opt => {
-    opt.classList.toggle('selected', opt.dataset.status === bp.status);
+  // Hide status option buttons (we use the form's date fields for status)
+  const statusOptions = document.getElementById('popupStatusOptions');
+  if (!statusOptions.dataset.originalHtml) {
+    statusOptions.dataset.originalHtml = statusOptions.innerHTML;
+  }
+  statusOptions.style.display = 'none';
+  popupInfo.style.display = 'block';
+  const todayStr = new Date().toISOString().slice(0, 10);
+  popupInfo.innerHTML = `
+    <div class="popup-info-row"><span class="popup-info-label">梁ID:</span><span class="popup-info-value">${bp.id}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">类型:</span><span class="popup-info-value">${bp.type}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">总长度:</span><span class="popup-info-value">${bp.totalLength}m</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">当前状态:</span><span class="popup-info-value" style="color:${STATUS_COLORS[bp.status]}">${STATUS_LABELS[bp.status]}</span></div>
+    <div class="popup-info-row"><span class="popup-info-label">截面尺寸:</span><input class="pile-input" data-field="sectionSize" value="${bp.sectionSize || ''}" placeholder="如 800×800mm"></div>
+    <div class="popup-info-row"><span class="popup-info-label">梁顶标高:</span><input class="pile-input" data-field="topElev" value="${bp.topElev || ''}" placeholder="如 25.80"></div>
+    <div class="popup-info-row"><span class="popup-info-label">开始施工时间:</span><input class="pile-input" type="date" data-field="startDate" value="${bp.startDate || ''}" max="${todayStr}"></div>
+    <div class="popup-info-row"><span class="popup-info-label">施工完成时间:</span><input class="pile-input" type="date" data-field="endDate" value="${bp.endDate || ''}" max="${todayStr}"></div>
+    <button class="pile-save-btn" onclick="saveBeamEdit()">保存</button>
+  `;
+  // Bind input events
+  const form = popupInfo;
+  form.querySelectorAll('.pile-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const field = input.dataset.field;
+      bp[field] = input.value;
+    });
   });
-  popupInfo.style.display = 'none';
   document.getElementById('popupDeleteSegBtn').style.display = 'none';
   positionPopup(e, popup);
   popup.classList.add('active');
+  // Restore status options when popup closes
+  const observer = new MutationObserver(() => {
+    if (!popup.classList.contains('active')) {
+      statusOptions.style.display = '';
+      observer.disconnect();
+    }
+  });
+  observer.observe(popup, { attributes: true, attributeFilter: ['class'] });
+}
+
+function saveBeamEdit() {
+  if (!currentTarget || !currentTarget.bp) return;
+  const bp = currentTarget.bp;
+  // Auto-determine status based on dates
+  const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
+  if (bp.endDate && viewDate >= bp.endDate) {
+    bp.status = 'done';
+  } else if (bp.startDate && viewDate >= bp.startDate) {
+    bp.status = 'doing';
+  } else {
+    bp.status = 'pending';
+  }
+  saveBeamData();
+  const di = document.getElementById('dateInput');
+  if (di) applyDateView(di.value);
+  document.getElementById('statusPopup').classList.remove('active');
+  showSaveToast('梁数据已保存');
+}
+
+function saveBeamData() {
+  const data = {};
+  beamPolygons.forEach(bp => {
+    data[bp.id] = {
+      sectionSize: bp.sectionSize || '',
+      topElev: bp.topElev || '',
+      startDate: bp.startDate || '',
+      endDate: bp.endDate || ''
+    };
+  });
+  localStorage.setItem('beamExtData', JSON.stringify(data));
+  if (sb && currentUser) {
+    const rows = Object.entries(data).map(([beamId, ext]) => ({
+      project_id: 'meilin',
+      beam_id: beamId,
+      section_size: ext.sectionSize || null,
+      top_elev: ext.topElev || null,
+      start_date: ext.startDate || null,
+      end_date: ext.endDate || null
+    }));
+    sb.from('beam_ext_data').upsert(rows, { onConflict: 'project_id,beam_id' }).then(({error}) => {
+      if (error) console.warn('Supabase beam data write error:', error);
+      else console.log('[DEBUG] Beam data synced to cloud:', rows.length, 'rows');
+    });
+  }
 }
 
 function showCrownPopup(e, cb, label) {
@@ -5858,7 +5987,11 @@ function showSvgTooltip(e, data) {
       <div class="tt-row"><span class="tt-label">ID:</span><span class="tt-val">${data.bp.id}</span></div>
       <div class="tt-row"><span class="tt-label">类型:</span><span class="tt-val">${data.bp.type}</span></div>
       <div class="tt-row"><span class="tt-label">长度:</span><span class="tt-val">${data.bp.totalLength}m</span></div>
+      ${data.bp.sectionSize ? `<div class="tt-row"><span class="tt-label">截面:</span><span class="tt-val">${data.bp.sectionSize}</span></div>` : ''}
+      ${data.bp.topElev ? `<div class="tt-row"><span class="tt-label">梁顶标高:</span><span class="tt-val">${data.bp.topElev}</span></div>` : ''}
       <div class="tt-row"><span class="tt-label">状态:</span><span class="tt-val">${STATUS_LABELS[data.bp.status]}</span></div>
+      ${data.bp.startDate ? `<div class="tt-row"><span class="tt-label">开始:</span><span class="tt-val">${data.bp.startDate}</span></div>` : ''}
+      ${data.bp.endDate ? `<div class="tt-row"><span class="tt-label">完成:</span><span class="tt-val">${data.bp.endDate}</span></div>` : ''}
     `;
   } else if (data.type === 'crown') {
     html = `
