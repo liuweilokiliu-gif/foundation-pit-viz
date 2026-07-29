@@ -4370,7 +4370,7 @@ function setStatus(status) {
   } else if (currentTarget.type === 'slab') {
     currentTarget.slab.status = status;
     recordChange(getItemIdFromTarget(currentTarget), status);
-  } else if (currentTarget.type === 'crownSeg') {
+  } else if (currentTarget.type === 'crownSeg' || currentTarget.type === 'crownSegment') {
     const oldStatus = currentTarget.seg.status;
     currentTarget.seg.status = status;
     undoStack.push({ action: 'changeCrownSegStatus', cbId: currentTarget.cb.id, seg: currentTarget.seg, oldStatus });
@@ -4395,7 +4395,12 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.status-popup') && !e.target.closest('.pile-circle') && !e.target.closest('[data-id]') && !e.target.closest('.beam-line-drawn') && !e.target.closest('.slab-poly-drawn') && !e.target.closest('.slab-region-drawn') && !e.target.closest('.crown-segment-line') && !e.target.closest('.crown-seg-item')) {
     document.getElementById('statusPopup').classList.remove('active');
     document.getElementById('popupDeleteSegBtn').style.display = 'none';
-    document.getElementById('popupStatusOptions').style.display = '';
+    // Restore original pile status buttons if they were replaced by crown seg popup
+    const statusOptions = document.getElementById('popupStatusOptions');
+    if (statusOptions.dataset.originalHtml && statusOptions.innerHTML !== statusOptions.dataset.originalHtml) {
+      statusOptions.innerHTML = statusOptions.dataset.originalHtml;
+    }
+    statusOptions.style.display = '';
     currentTarget = null;
   }
 });
@@ -5141,6 +5146,10 @@ function showCrownSegPopup(e, cbId, segIdx) {
   // Show status options (doing / done)
   const statusOptions = document.getElementById('popupStatusOptions');
   statusOptions.style.display = '';
+  // Save original HTML so we can restore it when popup closes
+  if (!statusOptions.dataset.originalHtml) {
+    statusOptions.dataset.originalHtml = statusOptions.innerHTML;
+  }
   statusOptions.innerHTML = '';
   // "施工中" button
   const doingBtn = document.createElement('div');
@@ -5203,7 +5212,10 @@ function showCrownSegPopup(e, cbId, segIdx) {
   // Restore status options HTML when popup closes
   const observer = new MutationObserver(() => {
     if (!popup.classList.contains('active')) {
-      statusOptions.innerHTML = '';
+      // Restore original pile status buttons (未施工/施工中/已完成)
+      if (statusOptions.dataset.originalHtml) {
+        statusOptions.innerHTML = statusOptions.dataset.originalHtml;
+      }
       observer.disconnect();
     }
   });
