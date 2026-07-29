@@ -2442,6 +2442,7 @@ function loadPlanStore() {
     if (saved) planStore = JSON.parse(saved);
     console.log('[DEBUG loadPlanStore] Loaded from localStorage. Keys:', Object.keys(planStore));
   } catch (e) {}
+  renderPlanPanel();
   // Then try to load from Supabase (cloud has priority if available)
   if (sb) {
     console.log('[DEBUG loadPlanStore] Loading from Supabase...');
@@ -2452,7 +2453,7 @@ function loadPlanStore() {
         else console.log('[DEBUG loadPlanStore] No cloud plan data found (PGRST116)');
         return;
       }
-      if (data && data.plan_data) {
+      if (data && data.plan_data && Object.keys(data.plan_data).length > 0) {
         planStore = data.plan_data;
         localStorage.setItem('planStore', JSON.stringify(planStore));
         renderPlanPanel();
@@ -2584,7 +2585,7 @@ function isInPlanPeriod(dateStr) {
 const PLAN_CATEGORIES = [
   { key: 'pile_biting_rein', label: '咬合桩(荤)', unit: '根', countFn: () => piles.filter(p => p.type === '咬合桩-荤桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
   { key: 'pile_biting_plain', label: '咬合桩(素)', unit: '根', countFn: () => piles.filter(p => p.type === '咬合桩-素桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
-  { key: 'pile_jet', label: '旋喷桩', unit: '根', countFn: () => piles.filter(p => p.type === '旋喷桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
+  { key: 'pile_jet', label: '旋喷桩', unit: '根', countFn: () => piles.filter(p => p.type === '双管旋喷桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
   { key: 'pile_micro', label: '微型桩', unit: '根', countFn: () => piles.filter(p => p.type === '微型桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
   { key: 'pile_column', label: '立柱桩', unit: '根', countFn: () => piles.filter(p => p.type === '立柱桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
   { key: 'pile_eng', label: '工程桩', unit: '根', countFn: () => piles.filter(p => p.type === '工程桩' && p.status === 'done' && isInPlanPeriod(p.endDate)).length },
@@ -2784,16 +2785,40 @@ function updateTargetValue(input) {
   planStore[key]._targets[input.dataset.cat] = parseInt(input.value) || 0;
 }
 
+function getMajorActual(cat) {
+  if (cat.label === '冠梁') {
+    let done = 0;
+    crownBeams.forEach(cb => {
+      if (cb.segments) cb.segments.forEach(s => {
+        if ((s.status === 'done' || s.status === 'doing') && isInPlanPeriod(s.endDate)) {
+          if (s.length !== undefined) done += s.length;
+          else done += cb.totalLength * (s.end - s.start) / 100;
+        }
+      });
+    });
+    return Math.round(done * 10) / 10;
+  }
+  if (cat.label === '盖板') {
+    return countSlabDone();
+  }
+  if (cat.types.includes('对撑') || cat.types.includes('角撑')) {
+    return beamPolygons.filter(bp => cat.types.includes(bp.type) && bp.status === 'done')
+      .reduce((s, bp) => s + bp.totalLength, 0);
+  }
+  return piles.filter(p => cat.types.includes(p.type) && p.status === 'done' && isInPlanPeriod(p.endDate)).length;
+}
+
 function renderPlanVsActual(key, plan) {
   const el = document.getElementById('planVsActual');
   let html = '';
-  const categories = currentPlanLevel === 'week' ? PLAN_CATEGORIES : PLAN_CATEGORIES;
+  const isWeek = currentPlanLevel === 'week';
+  const categories = isWeek ? PLAN_CATEGORIES : MAJOR_CATEGORIES;
 
   categories.forEach(cat => {
-    const planned = currentPlanLevel === 'week'
+    const planned = isWeek
       ? (plan[cat.key] || 0)
       : ((plan._targets && plan._targets[cat.label]) || 0);
-    const actual = cat.countFn();
+    const actual = isWeek ? cat.countFn() : getMajorActual(cat);
     if (planned === 0 && actual === 0) return;
     const maxVal = Math.max(planned, actual, 1);
     const plannedPct = Math.round(planned / maxVal * 100);
@@ -3018,8 +3043,9 @@ function loadBaseline() {
         if (e.targetId.match(/^(GL\d+)_seg_\d+$/)) return false;
         return true;
       });
-      if (dateSnapshots[date].length === 0) { delete dateSnapshots[date]; }
-      if (dateSnapshots[date].length !== before) dirty = true;
+      const after = dateSnapshots[date].length;
+      if (after === 0) { delete dateSnapshots[date]; }
+      if (after !== before) dirty = true;
     }
     if (dirty) {
       console.log('[DEBUG loadBaseline] Cleaned dirty data, saving corrected dateSnapshots');
