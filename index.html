@@ -4524,7 +4524,9 @@ function setStatus(status) {
     currentTarget.status = status;
     const viewDate = document.getElementById('dateInput')?.value || new Date().toISOString().slice(0, 10);
     // Auto-set dates based on status (same logic as beam polygons)
-    if (status === 'done' && !currentTarget.endDate) {
+    if (status === 'done') {
+      // Always update endDate to viewDate when marking as done
+      // (overwrites stale endDate from ledger data so it falls in current plan period)
       currentTarget.endDate = viewDate;
     }
     if (status === 'doing' && !currentTarget.startDate) {
