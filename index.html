@@ -1407,6 +1407,10 @@ function setupAuthListener() {
               }
             });
             console.log('[DEBUG] Loaded pile_ext_data from cloud:', data.length, 'rows');
+            // Re-apply date view after loading pile dates from cloud,
+            // so status is correctly derived from startDate/endDate (mirrors beam_ext_data logic)
+            const di2 = document.getElementById('dateInput');
+            if (di2) applyDateView(di2.value);
           }
         });
         // Sync beam ext data from cloud
@@ -1606,8 +1610,8 @@ function initPileData() {
     if (ext.rockElev !== undefined && ext.rockElev !== '') p.rockElev = ext.rockElev;
     if (ext.actualBottomElev !== undefined && ext.actualBottomElev !== '') p.actualBottomElev = ext.actualBottomElev;
     if (ext.actualLength !== undefined && ext.actualLength !== '') p.actualLength = ext.actualLength;
-    if (ext.startDate !== undefined && ext.startDate !== '') p.startDate = ext.startDate;
-    if (ext.endDate !== undefined && ext.endDate !== '') p.endDate = ext.endDate;
+    if (ext.startDate !== undefined) p.startDate = ext.startDate;
+    if (ext.endDate !== undefined) p.endDate = ext.endDate;
     if (ext.groundElev !== undefined && ext.groundElev !== '') p.groundElev = ext.groundElev;
     if (ext.holeDepth !== undefined && ext.holeDepth !== '') p.holeDepth = ext.holeDepth;
     if (ext.steelPipeLength !== undefined && ext.steelPipeLength !== '') p.steelPipeLength = ext.steelPipeLength;
@@ -1627,8 +1631,9 @@ function loadBeamExtData() {
   console.log('[DEBUG loadBeamExtData] Loaded from localStorage, beams with data:', Object.keys(savedData).length);
 }
 
-function savePileData() {
+function savePileData(optPileId) {
   if (isReadOnly()) { showReadOnlyTip(); return; }
+  // Always save ALL piles to localStorage (for offline use)
   const data = {};
   piles.forEach(p => {
     data[p.id] = {
@@ -1642,25 +1647,34 @@ function savePileData() {
     };
   });
   localStorage.setItem('pileExtData', JSON.stringify(data));
-  // Sync to Supabase (only for logged-in users)
+  // Sync to Supabase: ONLY upsert the modified pile (not all piles).
+  // Upserting all piles would overwrite cloud data with null/empty values
+  // for piles that haven't been loaded from cloud yet on this machine.
   if (sb && currentUser) {
-    const rows = Object.entries(data).map(([pileId, ext]) => ({
-      project_id: 'meilin',
-      pile_id: pileId,
-      pile_no: ext.pileNo || null,
-      diameter: ext.diameter || null,
-      design_length: ext.designLength || null,
-      design_top_elev: ext.designTopElev || null,
-      design_bottom_elev: ext.designBottomElev || null,
-      rock_depth: ext.rockDepth || null,
-      rock_elev: ext.rockElev || null,
-      actual_bottom_elev: ext.actualBottomElev || null,
-      actual_length: ext.actualLength || null,
-      start_date: ext.startDate || null,
-      end_date: ext.endDate || null
-    }));
+    const pilesToSync = optPileId ? [optPileId] : Object.keys(data);
+    const rows = pilesToSync.map(pid => {
+      const p = piles.find(pp => pp.id === pid);
+      const ext = data[pid];
+      const row = {
+        project_id: 'meilin',
+        pile_id: pid,
+        pile_no: ext.pileNo || null,
+        diameter: ext.diameter || null,
+        design_length: ext.designLength || null,
+        design_top_elev: ext.designTopElev || null,
+        design_bottom_elev: ext.designBottomElev || null,
+        rock_depth: ext.rockDepth || null,
+        rock_elev: ext.rockElev || null,
+        actual_bottom_elev: ext.actualBottomElev || null,
+        actual_length: ext.actualLength || null,
+        start_date: ext.startDate || null,
+        end_date: ext.endDate || null
+      };
+      return row;
+    });
     sb.from('pile_ext_data').upsert(rows, { onConflict: 'project_id,pile_id' }).then(({error}) => {
       if (error) console.warn('Supabase pile data write error:', error);
+      else console.log('[DEBUG] Pile data synced to cloud:', rows.length, 'rows, pile:', optPileId || 'ALL');
     });
   }
 }
@@ -1805,7 +1819,7 @@ const piles = [
   { id: 'YP016', type: '咬合桩-荤桩', workNo: 'A151', x: 171.8, y: 563.7, r: 6.6, status: 'pending' },
   { id: 'YP017', type: '咬合桩-荤桩', workNo: 'A152', x: 172.2, y: 583.4, r: 6.6, status: 'pending' },
   { id: 'YP018', type: '咬合桩-荤桩', workNo: 'A1', x: 470.2, y: 767.9, r: 6.6, startDate: '2026-07-10', endDate: '2026-07-16', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.53', rockDepth: '9.77', rockElev: '25.18', actualLength: '10.39', actualBottomElev: '15.41', status: 'done' },
-  { id: 'YP019', type: '咬合桩-荤桩', workNo: 'A2', x: 490.0, y: 767.6, r: 6.6, status: 'pending' },
+  { id: 'YP019', type: '咬合桩-荤桩', workNo: 'A2', x: 490.0, y: 767.6, r: 6.6, startDate: '2026-07-28', endDate: '2026-07-31', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '11.37', status: 'done' },
   { id: 'YP020', type: '咬合桩-荤桩', workNo: 'A3', x: 509.8, y: 767.3, r: 6.6, startDate: '2026-07-16', endDate: '2026-07-20', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.34', rockDepth: '9.02', rockElev: '24.62', actualLength: '10.2', actualBottomElev: '15.6', status: 'done' },
   { id: 'YP021', type: '咬合桩-荤桩', workNo: 'A4', x: 529.5, y: 766.9, r: 6.6, status: 'pending' },
   { id: 'YP022', type: '咬合桩-荤桩', workNo: 'A5', x: 549.3, y: 766.6, r: 6.6, status: 'pending' },
@@ -1814,7 +1828,7 @@ const piles = [
   { id: 'YP025', type: '咬合桩-荤桩', workNo: 'A8', x: 608.5, y: 765.5, r: 6.6, status: 'pending' },
   { id: 'YP026', type: '咬合桩-荤桩', workNo: 'A9', x: 628.3, y: 765.2, r: 6.6, status: 'pending' },
   { id: 'YP027', type: '咬合桩-荤桩', workNo: 'A10', x: 648.0, y: 764.9, r: 6.6, status: 'pending' },
-  { id: 'YP028', type: '咬合桩-荤桩', workNo: 'A11', x: 667.8, y: 764.5, r: 6.6, status: 'pending' },
+  { id: 'YP028', type: '咬合桩-荤桩', workNo: 'A11', x: 667.8, y: 764.5, r: 6.6, startDate: '2026-07-28', endDate: '2026-07-30', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.37', status: 'done' },
   { id: 'YP029', type: '咬合桩-荤桩', workNo: 'A12', x: 687.5, y: 764.2, r: 6.6, startDate: '2026-06-29', endDate: '2026-06-30', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.94', holeDepth: '11.3', rockDepth: '3', rockElev: '18.64', actualLength: '10.16', actualBottomElev: '15.64', status: 'done' },
   { id: 'YP030', type: '咬合桩-荤桩', workNo: 'A13', x: 707.3, y: 763.8, r: 6.6, status: 'pending' },
   { id: 'YP031', type: '咬合桩-荤桩', workNo: 'A14', x: 727.1, y: 763.5, r: 6.6, status: 'pending' },
@@ -1922,9 +1936,9 @@ const piles = [
   { id: 'YP133', type: '咬合桩-荤桩', workNo: 'A116', x: 506.8, y: 242.7, r: 6.6, status: 'pending' },
   { id: 'YP134', type: '咬合桩-荤桩', workNo: 'A117', x: 489.2, y: 243.3, r: 6.6, status: 'pending' },
   { id: 'YP135', type: '咬合桩-荤桩', workNo: 'A118', x: 471.7, y: 243.8, r: 6.6, startDate: '2026-07-15', endDate: '2026-07-17', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.77', holeDepth: '21.1', rockDepth: '3', rockElev: '15.7', actualLength: '17.3', actualBottomElev: '12.7', status: 'done' },
-  { id: 'YP136', type: '咬合桩-荤桩', workNo: 'A119', x: 454.1, y: 244.3, r: 6.6, status: 'pending' },
+  { id: 'YP136', type: '咬合桩-荤桩', workNo: 'A119', x: 454.1, y: 244.3, r: 6.6, startDate: '2026-07-19', endDate: '2026-07-29', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.77', holeDepth: '21.05', status: 'done' },
   { id: 'YP137', type: '咬合桩-荤桩', workNo: 'A120', x: 436.6, y: 244.8, r: 6.6, status: 'pending' },
-  { id: 'YP138', type: '咬合桩-荤桩', workNo: 'A121', x: 419.0, y: 245.3, r: 6.6, status: 'pending' },
+  { id: 'YP138', type: '咬合桩-荤桩', workNo: 'A121', x: 419.0, y: 245.3, r: 6.6, startDate: '2026-07-30', endDate: '2026-07-31', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.7', holeDepth: '20.9', status: 'done' },
   { id: 'YP139', type: '咬合桩-荤桩', workNo: 'A122', x: 401.4, y: 245.8, r: 6.6, startDate: '2026-07-17', endDate: '2026-07-19', designTopElev: '30', designBottomElev: '11.65', designLength: '18.35', groundElev: '33.77', holeDepth: '19.5', rockDepth: '3', rockElev: '17.3', actualLength: '15.7', actualBottomElev: '14.3', status: 'done' },
   { id: 'YP140', type: '咬合桩-荤桩', workNo: 'A123', x: 383.9, y: 246.4, r: 6.6, status: 'pending' },
   { id: 'YP141', type: '咬合桩-荤桩', workNo: 'A124', x: 366.3, y: 246.9, r: 6.6, status: 'pending' },
@@ -2035,7 +2049,7 @@ const piles = [
   { id: 'ZS022', type: '咬合桩-素桩', workNo: 'B6', x: 578.9, y: 766.1, r: 5.5, status: 'pending' },
   { id: 'ZS023', type: '咬合桩-素桩', workNo: 'B7', x: 598.6, y: 765.7, r: 5.5, status: 'pending' },
   { id: 'ZS024', type: '咬合桩-素桩', workNo: 'B8', x: 618.4, y: 765.4, r: 5.5, status: 'pending' },
-  { id: 'ZS025', type: '咬合桩-素桩', workNo: 'B9', x: 638.2, y: 765.0, r: 5.5, status: 'pending' },
+  { id: 'ZS025', type: '咬合桩-素桩', workNo: 'B9', x: 638.2, y: 765.0, r: 5.5, startDate: '2026-07-30', endDate: '2026-07-30', designTopElev: '25.8', designBottomElev: '11.65', designLength: '14.15', groundElev: '26.94', holeDepth: '8.68', status: 'done' },
   { id: 'ZS026', type: '咬合桩-素桩', workNo: 'B10', x: 657.9, y: 764.7, r: 5.5, startDate: '2026-07-01', endDate: '2026-07-02', designTopElev: '25.8', designBottomElev: '11.5', designLength: '14.3', groundElev: '26.9', holeDepth: '9.25', rockDepth: '1.11', rockElev: '18.76', actualLength: '8.15', actualBottomElev: '17.65', status: 'done' },
   { id: 'ZS027', type: '咬合桩-素桩', workNo: 'B11', x: 677.7, y: 764.3, r: 5.5, startDate: '2026-06-22', endDate: '2026-06-22', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '8.71', rockDepth: '1.13', rockElev: '19.36', actualLength: '7.57', actualBottomElev: '18.23', status: 'done' },
   { id: 'ZS028', type: '咬合桩-素桩', workNo: 'B12', x: 697.4, y: 764.0, r: 5.5, startDate: '2026-06-23', endDate: '2026-06-23', designTopElev: '25.8', designBottomElev: '13.5', designLength: '12.3', groundElev: '26.94', holeDepth: '8.3', rockDepth: '1.16', rockElev: '19.8', actualLength: '7.16', actualBottomElev: '18.64', status: 'done' },
@@ -2149,9 +2163,9 @@ const piles = [
   { id: 'ZS136', type: '咬合桩-素桩', workNo: 'B92', x: 427.8, y: 245.1, r: 5.5, startDate: '2026-07-14', endDate: '2026-07-15', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '19.15', rockDepth: '1', rockElev: '15.65', actualLength: '15.35', actualBottomElev: '14.65', status: 'done' },
   { id: 'ZS137', type: '咬合桩-素桩', workNo: 'B93', x: 410.2, y: 245.6, r: 5.5, startDate: '2026-07-11', endDate: '2026-07-12', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '18.22', rockDepth: '1.07', rockElev: '16.65', actualLength: '14.42', actualBottomElev: '15.58', status: 'done' },
   { id: 'ZS138', type: '咬合桩-素桩', workNo: 'B94', x: 392.7, y: 246.1, r: 5.5, startDate: '2026-07-14', endDate: '2026-07-14', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '16.8', rockDepth: '1', rockElev: '18', actualLength: '13', actualBottomElev: '17', status: 'done' },
-  { id: 'ZS139', type: '咬合桩-素桩', workNo: 'B95', x: 375.1, y: 246.6, r: 5.5, status: 'pending' },
+  { id: 'ZS139', type: '咬合桩-素桩', workNo: 'B95', x: 375.1, y: 246.6, r: 5.5, startDate: '2026-07-29', endDate: '2026-07-30', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '13.8', status: 'done' },
   { id: 'ZS140', type: '咬合桩-素桩', workNo: 'B96', x: 357.6, y: 247.1, r: 5.5, startDate: '2026-07-12', endDate: '2026-07-12', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '13.8', rockDepth: '1', rockElev: '21', actualLength: '10', actualBottomElev: '20', status: 'done' },
-  { id: 'ZS141', type: '咬合桩-素桩', workNo: 'B97', x: 340.0, y: 247.6, r: 5.5, status: 'pending' },
+  { id: 'ZS141', type: '咬合桩-素桩', workNo: 'B97', x: 340.0, y: 247.6, r: 5.5, startDate: '2026-07-31', endDate: '2026-08-01', designTopElev: '30', designBottomElev: '13.65', designLength: '16.35', groundElev: '33.77', holeDepth: '10', status: 'done' },
   { id: 'ZS142', type: '咬合桩-素桩', workNo: 'B98', x: 322.5, y: 248.2, r: 5.5, status: 'pending' },
   { id: 'ZS143', type: '咬合桩-素桩', workNo: 'B99', x: 304.9, y: 248.7, r: 5.5, status: 'pending' },
   { id: 'ZS144', type: '咬合桩-素桩', workNo: 'B100', x: 287.3, y: 249.2, r: 5.5, status: 'pending' },
@@ -2170,7 +2184,7 @@ const piles = [
   { id: 'LZ006', type: '立柱桩', x: 268.6, y: 459.3, r: 5.5, status: 'pending' },
   { id: 'LZ007', type: '立柱桩', x: 565.0, y: 413.1, r: 5.5, status: 'pending' },
   { id: 'LZ008', type: '立柱桩', x: 553.4, y: 546.6, r: 5.5, status: 'pending' },
-  { id: 'LZ009', type: '立柱桩', x: 543.0, y: 666.8, r: 5.5, status: 'pending' },
+  { id: 'LZ009', type: '立柱桩', x: 543.0, y: 666.8, r: 5.5, startDate: '2026-07-31', endDate: '2026-07-31', designTopElev: '18.65', designBottomElev: '6.65', designLength: '12', groundElev: '27.35', holeDepth: '19.62', status: 'done' },
   { id: 'LZ010', type: '立柱桩', x: 718.6, y: 663.8, r: 5.5, status: 'pending' },
   { id: 'LZ011', type: '立柱桩', x: 728.5, y: 549.6, r: 5.5, status: 'pending' },
   { id: 'LZ012', type: '立柱桩', x: 894.2, y: 660.8, r: 5.5, status: 'pending' },
@@ -2209,17 +2223,17 @@ const piles = [
   { id: 'GC018', type: '工程桩', workNo: 'Z18', x: 1096.1, y: 455.9, r: 6.6, startDate: '2026-07-08', endDate: '2026-07-10', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.55', holeDepth: '19.26', rockDepth: '6.16', rockElev: '14.77', actualLength: '6.04', actualBottomElev: '8.61', status: 'done' },
   { id: 'GC019', type: '工程桩', workNo: 'Z19', x: 1168.5, y: 448.4, r: 8.8, startDate: '2026-01-23', endDate: '2026-01-24', designTopElev: '27.3', designBottomElev: '4.8', designLength: '22.5', groundElev: '27.3', holeDepth: '16.25', rockDepth: '2.5', rockElev: '14.05', actualLength: '15.75', actualBottomElev: '11.55', status: 'done' },
   { id: 'GC020', type: '工程桩', workNo: 'Z20', x: 999.9, y: 489.6, r: 8.8, startDate: '2026-07-15', endDate: '2026-07-20', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.31', rockDepth: '8.84', rockElev: '17.39', actualLength: '6.1', actualBottomElev: '8.55', status: 'done' },
-  { id: 'GC021', type: '工程桩', workNo: 'Z21', x: 1072.9, y: 489.8, r: 8.8, status: 'pending' },
+  { id: 'GC021', type: '工程桩', workNo: 'Z21', x: 1072.9, y: 489.8, r: 8.8, startDate: '2026-07-20', endDate: '2026-07-24', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.3', status: 'done' },
   { id: 'GC022', type: '工程桩', workNo: 'Z22', x: 902.1, y: 518.3, r: 8.8, startDate: '2026-06-21', endDate: '2026-06-22', designTopElev: '17.95', designBottomElev: '10.95', designLength: '7', groundElev: '27.59', holeDepth: '16', rockDepth: '5.04', rockElev: '16.89', actualLength: '6.1', actualBottomElev: '11.85', status: 'done' },
   { id: 'GC023', type: '工程桩', workNo: 'Z23', x: 974, y: 518, r: 8.8, startDate: '2026-07-03', endDate: '2026-07-06', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.41', holeDepth: '16.05', rockDepth: '4.89', rockElev: '16.59', actualLength: '6.15', actualBottomElev: '11.7', status: 'done' },
   { id: 'GC024', type: '工程桩', workNo: 'Z24', x: 1005.3, y: 518.1, r: 8.8, startDate: '2026-07-10', endDate: '2026-07-14', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.34', holeDepth: '17', rockDepth: '6.1', rockElev: '16.72', actualLength: '6.08', actualBottomElev: '10.62', status: 'done' },
   { id: 'GC025', type: '工程桩', workNo: 'Z25', x: 1047.6, y: 518.3, r: 8.8, startDate: '2026-07-06', endDate: '2026-07-08', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.49', holeDepth: '16.2', rockDepth: '4.3', rockElev: '15.9', actualLength: '6.25', actualBottomElev: '11.6', status: 'done' },
   { id: 'GC026', type: '工程桩', workNo: 'Z26', x: 1095, y: 518.4, r: 8.8, startDate: '2026-07-14', endDate: '2026-07-16', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.44', holeDepth: '16.05', rockDepth: '3.41', rockElev: '15.16', actualLength: '6.1', actualBottomElev: '11.75', status: 'done' },
   { id: 'GC027', type: '工程桩', workNo: 'Z27', x: 1163.9, y: 519.8, r: 8.8, startDate: '2026-06-28', endDate: '2026-06-29', designTopElev: '17.95', designBottomElev: '8.95', designLength: '9', groundElev: '27.43', holeDepth: '17.38', rockDepth: '2.53', rockElev: '12.75', actualLength: '7.73', actualBottomElev: '10.22', status: 'done' },
-  { id: 'GC028', type: '工程桩', workNo: 'Z28', x: 932.7, y: 562.3, r: 6.6, status: 'pending' },
-  { id: 'GC029', type: '工程桩', workNo: 'Z29', x: 932.6, y: 595.2, r: 8.8, status: 'pending' },
-  { id: 'GC030', type: '工程桩', workNo: 'Z30', x: 1001.7, y: 587.8, r: 8.8, status: 'pending' },
-  { id: 'GC031', type: '工程桩', workNo: 'Z31', x: 1095.6, y: 588.1, r: 8.8, status: 'pending' },
+  { id: 'GC028', type: '工程桩', workNo: 'Z28', x: 932.7, y: 562.3, r: 6.6, startDate: '2026-07-21', endDate: '2026-07-22', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.5', holeDepth: '16.44', status: 'done' },
+  { id: 'GC029', type: '工程桩', workNo: 'Z29', x: 932.6, y: 595.2, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.38', holeDepth: '16.45', status: 'done' },
+  { id: 'GC030', type: '工程桩', workNo: 'Z30', x: 1001.7, y: 587.8, r: 8.8, startDate: '2026-07-22', endDate: '2026-07-25', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.31', holeDepth: '15.88', status: 'done' },
+  { id: 'GC031', type: '工程桩', workNo: 'Z31', x: 1095.6, y: 588.1, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.42', holeDepth: '16', status: 'done' },
   { id: 'GC032', type: '工程桩', workNo: 'Z32', x: 1162.1, y: 563.1, r: 6.6, startDate: '2026-01-24', endDate: '2026-01-25', designTopElev: '27.3', designBottomElev: '3.8', designLength: '23.5', groundElev: '27.3', holeDepth: '17.12', rockDepth: '1.82', rockElev: '12.45', actualLength: '16.67', actualBottomElev: '10.63', status: 'done' },
   { id: 'GC033', type: '工程桩', workNo: 'Z33', x: 1162, y: 596.1, r: 8.8, startDate: '2026-06-30', endDate: '2026-07-02', designTopElev: '17.45', designBottomElev: '6.95', designLength: '10.5', groundElev: '27.23', holeDepth: '18.9', rockDepth: '2.54', rockElev: '11.25', actualLength: '8.74', actualBottomElev: '8.71', status: 'done' },
   { id: 'GC034', type: '工程桩', workNo: 'Z34', x: 1006.5, y: 337.5, r: 6.6, startDate: '2026-06-12', endDate: '2026-06-13', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.64', holeDepth: '17.38', rockDepth: '2.78', rockElev: '13.29', actualLength: '6.19', actualBottomElev: '10.51', status: 'done' },
@@ -2938,6 +2952,10 @@ function saveBaseline() {
 
 let baseline = {};
 
+// Data version: increment when hardcoded pile/beam data changes.
+// This forces localStorage cache invalidation so new hardcoded values take effect.
+const DATA_VERSION = '2026-08-04-v1';
+
 // ---- Persist crown segment definitions to baseline + localStorage + Supabase ----
 function saveCrownSegments(cb) {
   if (!cb) return;
@@ -3041,14 +3059,27 @@ async function loadBaselineFromCloud() {
     // Reconstruct dateSnapshots from cloud data
     // Skip _segments rows — they are segment definitions, not status changes
     const cloudSnapshots = {};
+    let skippedDirty = 0;
     data.forEach(row => {
       if (row.target_id.endsWith('_segments')) return; // skip segment definition rows
       // Skip stale crown segment status changes — segment definitions are managed
       // by saveCrownSegments only, not dateSnapshots
       if (row.target_id.match(/^(GL\d+)_seg_\d+$/)) return;
+      // Defensive filter: skip 'doing' status for piles that have no construction
+      // dates in the source code (hardcoded pending). These are stale dirty records
+      // from the old savePileData bug that overwrote cloud data.
+      const pile = piles.find(p => p.id === row.target_id);
+      if (pile && row.status === 'doing' && !pile.startDate && !pile.endDate) {
+        skippedDirty++;
+        console.warn('[loadBaselineFromCloud] Skipping dirty doing record for', row.target_id, 'on', row.status_date);
+        return;
+      }
       if (!cloudSnapshots[row.status_date]) cloudSnapshots[row.status_date] = [];
       cloudSnapshots[row.status_date].push({ targetId: row.target_id, newStatus: row.status });
     });
+    if (skippedDirty > 0) {
+      console.log('[loadBaselineFromCloud] Filtered out', skippedDirty, 'dirty doing records for piles without construction dates');
+    }
     dateSnapshots = cloudSnapshots;
     localStorage.setItem('dateSnapshots', JSON.stringify(dateSnapshots));
     return true;
@@ -3060,6 +3091,16 @@ async function loadBaselineFromCloud() {
 
 function loadBaseline() {
   console.log('[DEBUG loadBaseline] START. localStorage keys:', Object.keys(localStorage));
+  // Check data version — if mismatch, clear stale caches so new hardcoded data takes effect
+  const cachedVersion = localStorage.getItem('dataVersion');
+  if (cachedVersion !== DATA_VERSION) {
+    console.log('[DEBUG loadBaseline] Data version mismatch:', cachedVersion, '->', DATA_VERSION, 'Clearing caches');
+    localStorage.removeItem('baseline');
+    localStorage.removeItem('pileExtData');
+    localStorage.removeItem('beamExtData');
+    // Do NOT clear dateSnapshots — those are user-entered status changes that should persist
+    localStorage.setItem('dataVersion', DATA_VERSION);
+  }
   // Only regenerate baseline if not already cached
   const cached = localStorage.getItem('baseline');
   if (cached) {
@@ -3083,6 +3124,9 @@ function loadBaseline() {
         if (!e || !e.targetId) return false;
         // Remove stale crown segment status changes
         if (e.targetId.match(/^(GL\d+)_seg_\d+$/)) return false;
+        // Defensive filter: remove 'doing' records for piles without construction dates
+        const pile = piles.find(p => p.id === e.targetId);
+        if (pile && e.newStatus === 'doing' && !pile.startDate && !pile.endDate) return false;
         return true;
       });
       const after = dateSnapshots[date].length;
@@ -3221,24 +3265,22 @@ function applyDateView(targetDate) {
   });
 
   // Override pile status based on construction dates (startDate/endDate)
+  // IMPORTANT: Only override when BOTH dates are present. If only one date exists,
+  // the data may be corrupted (e.g., end_date was overwritten with null by old savePileData bug).
+  // In that case, rely on dateSnapshots replay for status determination.
   piles.forEach(p => {
-    if (p.startDate && p.endDate) {
-      if (targetDate >= p.endDate) {
+    const effStart = p.startDate || undefined;
+    const effEnd = p.endDate || undefined;
+    if (effStart && effEnd) {
+      if (targetDate >= effEnd) {
         p.status = 'done';
-      } else if (targetDate >= p.startDate && targetDate < p.endDate) {
+      } else if (targetDate >= effStart) {
         p.status = 'doing';
-      }
-    } else if (p.startDate) {
-      // Only start date set: mark as doing from start date onwards
-      if (targetDate >= p.startDate) {
-        p.status = 'doing';
-      }
-    } else if (p.endDate) {
-      // Only end date set: mark as done from end date onwards
-      if (targetDate >= p.endDate) {
-        p.status = 'done';
+      } else {
+        p.status = 'pending';
       }
     }
+    // If only one date or no dates: keep status from dateSnapshots replay (do NOT override)
   });
 
   // Micro piles without construction data forced to pending
@@ -3288,10 +3330,11 @@ function applyDateView(targetDate) {
   });
 
   // Beam polygons: override status based on startDate/endDate
+  // Same rule as piles: only override when BOTH dates are present
   beamPolygons.forEach(bp => {
     const effEnd = bp.endDate || undefined;
     const effStart = bp.startDate || undefined;
-    if (effEnd && effStart) {
+    if (effStart && effEnd) {
       if (targetDate >= effEnd) {
         bp.status = 'done';
       } else if (targetDate >= effStart) {
@@ -3299,11 +3342,8 @@ function applyDateView(targetDate) {
       } else {
         bp.status = 'pending';
       }
-    } else if (effEnd) {
-      bp.status = targetDate >= effEnd ? 'done' : 'pending';
-    } else if (effStart) {
-      bp.status = targetDate >= effStart ? 'doing' : 'pending';
     }
+    // If only one date or no dates: keep status from dateSnapshots replay (do NOT override)
   });
 
   refresh();
@@ -4170,7 +4210,7 @@ function updateAutoFields(form, pile) {
 
 function savePileEdit() {
   if (!currentTarget) return;
-  savePileData();
+  savePileData(currentTarget.id);
   // Update pile display ID if pileNo was set
   if (currentTarget.pileNo) {
     const textEl = document.querySelector(`.pile-label[data-id="${currentTarget.id}"]`);
@@ -4281,14 +4321,14 @@ function saveBeamEdit() {
   } else {
     bp.status = 'pending';
   }
-  saveBeamData();
+  saveBeamData(bp.id);
   const di = document.getElementById('dateInput');
   if (di) applyDateView(di.value);
   document.getElementById('statusPopup').classList.remove('active');
   showSaveToast('梁数据已保存');
 }
 
-function saveBeamData() {
+function saveBeamData(optBeamId) {
   const data = {};
   beamPolygons.forEach(bp => {
     data[bp.id] = {
@@ -4299,18 +4339,24 @@ function saveBeamData() {
     };
   });
   localStorage.setItem('beamExtData', JSON.stringify(data));
+  // Sync to Supabase: ONLY upsert the modified beam (not all beams).
+  // Same rationale as savePileData — avoid overwriting cloud data with empty values.
   if (sb && currentUser) {
-    const rows = Object.entries(data).map(([beamId, ext]) => ({
-      project_id: 'meilin',
-      beam_id: beamId,
-      section_size: ext.sectionSize || null,
-      top_elev: ext.topElev || null,
-      start_date: ext.startDate || null,
-      end_date: ext.endDate || null
-    }));
+    const beamsToSync = optBeamId ? [optBeamId] : Object.keys(data);
+    const rows = beamsToSync.map(bid => {
+      const ext = data[bid];
+      return {
+        project_id: 'meilin',
+        beam_id: bid,
+        section_size: ext.sectionSize || null,
+        top_elev: ext.topElev || null,
+        start_date: ext.startDate || null,
+        end_date: ext.endDate || null
+      };
+    });
     sb.from('beam_ext_data').upsert(rows, { onConflict: 'project_id,beam_id' }).then(({error}) => {
       if (error) console.warn('Supabase beam data write error:', error);
-      else console.log('[DEBUG] Beam data synced to cloud:', rows.length, 'rows');
+      else console.log('[DEBUG] Beam data synced to cloud:', rows.length, 'rows, beam:', optBeamId || 'ALL');
     });
   }
 }
@@ -4518,7 +4564,7 @@ function setStatus(status) {
       bp.endDate = '';
     }
     recordChange(getItemIdFromTarget(currentTarget), status);
-    saveBeamData();
+    saveBeamData(currentTarget.bp.id);
   } else {
     const oldStatus = currentTarget.status;
     currentTarget.status = status;
@@ -4541,7 +4587,7 @@ function setStatus(status) {
     }
     undoStack.push({ action: 'changePileStatus', pileId: currentTarget.id, oldStatus });
     recordChange(getItemIdFromTarget(currentTarget), status);
-    savePileData();
+    savePileData(currentTarget.id);
   }
   document.getElementById('statusPopup').classList.remove('active');
   document.getElementById('popupDeleteSegBtn').style.display = 'none';
