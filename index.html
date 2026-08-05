@@ -1411,6 +1411,13 @@ function setupAuthListener() {
             // so status is correctly derived from startDate/endDate (mirrors beam_ext_data logic)
             const di2 = document.getElementById('dateInput');
             if (di2) applyDateView(di2.value);
+            // One-time sync: push updated hardcoded pile data to cloud after code update
+            if (localStorage.getItem('needPileSync') === 'true' && sb && currentUser) {
+              const syncIds = ['GC021', 'GC028', 'GC029', 'GC030', 'GC031'];
+              syncIds.forEach(pid => savePileData(pid));
+              localStorage.removeItem('needPileSync');
+              console.log('[DEBUG] One-time pile data sync completed for', syncIds.length, 'piles');
+            }
           }
         });
         // Sync beam ext data from cloud
@@ -1668,7 +1675,11 @@ function savePileData(optPileId) {
         actual_bottom_elev: ext.actualBottomElev || null,
         actual_length: ext.actualLength || null,
         start_date: ext.startDate || null,
-        end_date: ext.endDate || null
+        end_date: ext.endDate || null,
+        ground_elev: ext.groundElev || null,
+        hole_depth: ext.holeDepth || null,
+        steel_pipe_length: ext.steelPipeLength || null,
+        bearing_stratum: ext.bearingStratum || null
       };
       return row;
     });
@@ -2223,17 +2234,17 @@ const piles = [
   { id: 'GC018', type: '工程桩', workNo: 'Z18', x: 1096.1, y: 455.9, r: 6.6, startDate: '2026-07-08', endDate: '2026-07-10', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.55', holeDepth: '19.26', rockDepth: '6.16', rockElev: '14.77', actualLength: '6.04', actualBottomElev: '8.61', status: 'done' },
   { id: 'GC019', type: '工程桩', workNo: 'Z19', x: 1168.5, y: 448.4, r: 8.8, startDate: '2026-01-23', endDate: '2026-01-24', designTopElev: '27.3', designBottomElev: '4.8', designLength: '22.5', groundElev: '27.3', holeDepth: '16.25', rockDepth: '2.5', rockElev: '14.05', actualLength: '15.75', actualBottomElev: '11.55', status: 'done' },
   { id: 'GC020', type: '工程桩', workNo: 'Z20', x: 999.9, y: 489.6, r: 8.8, startDate: '2026-07-15', endDate: '2026-07-20', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.31', rockDepth: '8.84', rockElev: '17.39', actualLength: '6.1', actualBottomElev: '8.55', status: 'done' },
-  { id: 'GC021', type: '工程桩', workNo: 'Z21', x: 1072.9, y: 489.8, r: 8.8, startDate: '2026-07-20', endDate: '2026-07-24', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.3', diameter: '1600', status: 'done' },
+  { id: 'GC021', type: '工程桩', workNo: 'Z21', x: 1072.9, y: 489.8, r: 8.8, startDate: '2026-07-20', endDate: '2026-07-24', designTopElev: '14.65', designBottomElev: '8.65', designLength: '6', groundElev: '27.5', holeDepth: '19.3', rockDepth: '9.1', rockElev: '17.68', actualLength: '6.07', actualBottomElev: '8.58', status: 'done' },
   { id: 'GC022', type: '工程桩', workNo: 'Z22', x: 902.1, y: 518.3, r: 8.8, startDate: '2026-06-21', endDate: '2026-06-22', designTopElev: '17.95', designBottomElev: '10.95', designLength: '7', groundElev: '27.59', holeDepth: '16', rockDepth: '5.04', rockElev: '16.89', actualLength: '6.1', actualBottomElev: '11.85', status: 'done' },
   { id: 'GC023', type: '工程桩', workNo: 'Z23', x: 974, y: 518, r: 8.8, startDate: '2026-07-03', endDate: '2026-07-06', designTopElev: '17.85', designBottomElev: '11.85', designLength: '6', groundElev: '27.41', holeDepth: '16.05', rockDepth: '4.89', rockElev: '16.59', actualLength: '6.15', actualBottomElev: '11.7', status: 'done' },
   { id: 'GC024', type: '工程桩', workNo: 'Z24', x: 1005.3, y: 518.1, r: 8.8, startDate: '2026-07-10', endDate: '2026-07-14', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.34', holeDepth: '17', rockDepth: '6.1', rockElev: '16.72', actualLength: '6.08', actualBottomElev: '10.62', status: 'done' },
   { id: 'GC025', type: '工程桩', workNo: 'Z25', x: 1047.6, y: 518.3, r: 8.8, startDate: '2026-07-06', endDate: '2026-07-08', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.49', holeDepth: '16.2', rockDepth: '4.3', rockElev: '15.9', actualLength: '6.25', actualBottomElev: '11.6', status: 'done' },
   { id: 'GC026', type: '工程桩', workNo: 'Z26', x: 1095, y: 518.4, r: 8.8, startDate: '2026-07-14', endDate: '2026-07-16', designTopElev: '17.85', designBottomElev: '10.35', designLength: '7.5', groundElev: '27.44', holeDepth: '16.05', rockDepth: '3.41', rockElev: '15.16', actualLength: '6.1', actualBottomElev: '11.75', status: 'done' },
   { id: 'GC027', type: '工程桩', workNo: 'Z27', x: 1163.9, y: 519.8, r: 8.8, startDate: '2026-06-28', endDate: '2026-06-29', designTopElev: '17.95', designBottomElev: '8.95', designLength: '9', groundElev: '27.43', holeDepth: '17.38', rockDepth: '2.53', rockElev: '12.75', actualLength: '7.73', actualBottomElev: '10.22', status: 'done' },
-  { id: 'GC028', type: '工程桩', workNo: 'Z28', x: 932.7, y: 562.3, r: 6.6, startDate: '2026-07-21', endDate: '2026-07-22', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.5', holeDepth: '16.44', diameter: '1200', status: 'done' },
-  { id: 'GC029', type: '工程桩', workNo: 'Z29', x: 932.6, y: 595.2, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.38', holeDepth: '16.45', diameter: '1600', status: 'done' },
-  { id: 'GC030', type: '工程桩', workNo: 'Z30', x: 1001.7, y: 587.8, r: 8.8, startDate: '2026-07-22', endDate: '2026-07-25', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.31', holeDepth: '15.88', diameter: '1600', status: 'done' },
-  { id: 'GC031', type: '工程桩', workNo: 'Z31', x: 1095.6, y: 588.1, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.42', holeDepth: '16', diameter: '1600', status: 'done' },
+  { id: 'GC028', type: '工程桩', workNo: 'Z28', x: 932.7, y: 562.3, r: 6.6, startDate: '2026-07-21', endDate: '2026-07-22', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.5', holeDepth: '16.44', rockDepth: '5.29', rockElev: '16.74', actualLength: '6', actualBottomElev: '11.45', status: 'done' },
+  { id: 'GC029', type: '工程桩', workNo: 'Z29', x: 932.6, y: 595.2, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.45', designBottomElev: '11.45', designLength: '6', groundElev: '27.38', holeDepth: '16.45', rockDepth: '5.53', rockElev: '16.87', actualLength: '6.11', actualBottomElev: '11.34', status: 'done' },
+  { id: 'GC030', type: '工程桩', workNo: 'Z30', x: 1001.7, y: 587.8, r: 8.8, startDate: '2026-07-22', endDate: '2026-07-25', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.31', holeDepth: '15.88', rockDepth: '3.33', rockElev: '15.13', actualLength: '6.15', actualBottomElev: '11.8', status: 'done' },
+  { id: 'GC031', type: '工程桩', workNo: 'Z31', x: 1095.6, y: 588.1, r: 8.8, startDate: '2026-07-27', endDate: '2026-07-28', designTopElev: '17.95', designBottomElev: '11.95', designLength: '6', groundElev: '27.42', holeDepth: '16', rockDepth: '2.92', rockElev: '14.79', actualLength: '6.08', actualBottomElev: '11.87', status: 'done' },
   { id: 'GC032', type: '工程桩', workNo: 'Z32', x: 1162.1, y: 563.1, r: 6.6, startDate: '2026-01-24', endDate: '2026-01-25', designTopElev: '27.3', designBottomElev: '3.8', designLength: '23.5', groundElev: '27.3', holeDepth: '17.12', rockDepth: '1.82', rockElev: '12.45', actualLength: '16.67', actualBottomElev: '10.63', status: 'done' },
   { id: 'GC033', type: '工程桩', workNo: 'Z33', x: 1162, y: 596.1, r: 8.8, startDate: '2026-06-30', endDate: '2026-07-02', designTopElev: '17.45', designBottomElev: '6.95', designLength: '10.5', groundElev: '27.23', holeDepth: '18.9', rockDepth: '2.54', rockElev: '11.25', actualLength: '8.74', actualBottomElev: '8.71', status: 'done' },
   { id: 'GC034', type: '工程桩', workNo: 'Z34', x: 1006.5, y: 337.5, r: 6.6, startDate: '2026-06-12', endDate: '2026-06-13', designTopElev: '16.7', designBottomElev: '10.7', designLength: '6', groundElev: '27.64', holeDepth: '17.38', rockDepth: '2.78', rockElev: '13.29', actualLength: '6.19', actualBottomElev: '10.51', status: 'done' },
@@ -2954,7 +2965,7 @@ let baseline = {};
 
 // Data version: increment when hardcoded pile/beam data changes.
 // This forces localStorage cache invalidation so new hardcoded values take effect.
-const DATA_VERSION = '2026-08-04-v1';
+const DATA_VERSION = '2026-08-05-v1';
 
 // ---- Persist crown segment definitions to baseline + localStorage + Supabase ----
 function saveCrownSegments(cb) {
@@ -2975,7 +2986,7 @@ function saveCrownSegments(cb) {
       target_id: cb.id + '_segments',
       status: segJson,
       status_date: todayDate
-    }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
+    }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
       if (error) {
         console.error('[DEBUG saveCrownSegments] Supabase write ERROR:', error.message, error.code);
       } else {
@@ -2990,7 +3001,7 @@ function saveCrownSegments(cb) {
         target_id: cb.id + '_segments',
         status: '[]',
         status_date: todayDate
-      }, { onConflict: 'project_id,target_id,status_date' }).then(({ error }) => {
+      }, { onConflict: 'project_id,target_id' }).then(({ error }) => {
         if (error) console.error('[DEBUG saveCrownSegments] Supabase write ERROR (empty):', error.message);
         else console.log('[DEBUG saveCrownSegments] Cloud sync OK (empty):', cb.id);
       });
@@ -3087,6 +3098,8 @@ function loadBaseline() {
     localStorage.removeItem('beamExtData');
     // Do NOT clear dateSnapshots — those are user-entered status changes that should persist
     localStorage.setItem('dataVersion', DATA_VERSION);
+    // Flag one-time cloud sync for updated hardcoded pile data
+    localStorage.setItem('needPileSync', 'true');
   }
   // Only regenerate baseline if not already cached
   const cached = localStorage.getItem('baseline');
@@ -3172,7 +3185,7 @@ function recordChange(targetId, newStatus) {
       target_id: targetId,
       status: newStatus,
       status_date: date
-    }, { onConflict: 'project_id,target_id,status_date' }).then(({error}) => {
+    }, { onConflict: 'project_id,target_id' }).then(({error}) => {
       if (error) {
         console.error('Supabase write error:', error);
         console.warn('Data saved to localStorage only. Cloud sync failed.');
